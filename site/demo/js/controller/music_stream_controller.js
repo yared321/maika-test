@@ -128,7 +128,9 @@ function bindAudioControlsOnce() {
   playBtn.addEventListener("click", () => {
     if (audio.paused && getSelect().value !== "") {
       playBtn.textContent = "⏳ Starting…";
-      void audio.play().catch(() => {});
+      void audio.play().catch(() => {
+        playBtn.textContent = "▶ Play";
+      });
     }
   });
 
@@ -238,8 +240,12 @@ function onMusicSelectChange() {
 
   audio.pause();
   audio.src = song.url;
+  audio.preload = "auto";
+  audio.load();
   if (fallback) {
     fallback.src = song.url;
+    fallback.preload = "auto";
+    fallback.load();
   }
 
   if (progressBar) {
