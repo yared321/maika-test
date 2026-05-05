@@ -48,8 +48,14 @@
       href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+        <link rel="stylesheet" href="/demo/css/face_scanner.css?v=20260505-split-a" />
+        <link rel="stylesheet" href="/demo/css/face_scanner_fx.css?v=20260505-split-a" />
     <link rel="stylesheet" href="/styles.css?v=20260306-teamfix" />
-    <link rel="stylesheet" href="/demo/css/demo.css?v=20260501-selectfix" />
+    <link rel="stylesheet" href="/demo/css/demo_landing.css?v=20260505-landing-split" />
+    <link rel="stylesheet" href="/demo/css/demo_music_player.css?v=20260505-music-player-split" />
+    <link rel="stylesheet" href="/demo/css/demo.css?v=20260505-wizard-steps" />
+    <link rel="stylesheet" href="/demo/css/emotion_map.css?v=20260505-y-axis-reveal" />
+    <link rel="stylesheet" href="/demo/css/valence_slider.css?v=20260504-valence-refactor" />
   </head>
   <body class="home-page">
     <div class="site-bg" aria-hidden="true"></div>
@@ -109,8 +115,70 @@
       </header>
 
       <main>
+        <!-- Hero wrapper section -->
         <section class="section hero hero-cinematic" data-hero-intro>
-          <section class="user-input-section">
+          <!-- Demo landing section -->
+          <section class="demo-landing" id="demo-landing" aria-label="Demo overview">
+            <div class="demo-landing__hero">
+              <p class="demo-landing__kicker">Interactive demo</p>
+              <h1 class="demo-landing__title">
+                Discover your emotional response to music in one guided flow.
+              </h1>
+              <p class="demo-landing__copy">
+                This experience combines music listening, a short consented face scan, and immediate
+                scoring to estimate arousal and visualize your current emotional position.
+              </p>
+              <div class="demo-landing__points" aria-hidden="true">
+                <span>Consent before camera access</span>
+                <span>Auto upload + score processing</span>
+                <span>Clear 2D emotional result view</span>
+              </div>
+            </div>
+            <div class="demo-landing__strip" aria-hidden="true">
+              <article class="demo-strip-card">
+                <p class="demo-strip-card__step">Step 1</p>
+                <p class="demo-strip-card__label">Enter your age and gender</p>
+              </article>
+              <article class="demo-strip-card">
+                <p class="demo-strip-card__step">Step 2</p>
+                <p class="demo-strip-card__label">Listen to one selected track</p>
+              </article>
+              <article class="demo-strip-card">
+                <p class="demo-strip-card__step">Step 3</p>
+                <p class="demo-strip-card__label">Record a short guided face scan</p>
+              </article>
+              <article class="demo-strip-card">
+                <p class="demo-strip-card__step">Step 4</p>
+                <p class="demo-strip-card__label">Set your current valence with the slider</p>
+              </article>
+              <article class="demo-strip-card">
+                <p class="demo-strip-card__step">Step 5</p>
+                <p class="demo-strip-card__label">View arousal + valence emotion map</p>
+              </article>
+            </div>
+            <div class="demo-access-card">
+              <p class="demo-access-card__title">Try the demo</p>
+              <p class="demo-access-card__copy">
+                Enter your demo access code to continue to the guided flow.
+              </p>
+              <label class="demo-access-card__label" for="demo-access-code">
+                Access code
+              </label>
+              <input
+                id="demo-access-code"
+                class="demo-access-card__input"
+                type="password"
+                autocomplete="off"
+                placeholder="Enter demo code"
+              />
+              <p class="demo-access-card__error hidden" id="demo-access-error" aria-live="polite"></p>
+              <button class="btn btn-primary demo-access-card__btn" id="demo-access-cta" type="button">
+                Try Demo
+              </button>
+            </div>
+          </section>
+          <!-- Demo wizard flow section -->
+          <section class="user-input-section hidden" id="demo-flow" hidden>
             <form
               class="input-container wizard-form"
               id="demoWizardForm"
@@ -134,7 +202,8 @@
                       name="age"
                       type="number"
                       inputmode="numeric"
-                      min="0"
+                      min="12"
+                      max="100"
                       step="1"
                       required
                     />
@@ -270,18 +339,287 @@
               <!-- Third section scan face -->
               <section class="wizard-step" data-step="3" aria-hidden="true">
                 <div class="field-grid field-grid-single">
-                  <p>Scan face</p>
+                  <div class="app">
+                    <header class="header">
+                      <h1>Face scan</h1>
+                    </header>
+              
+                    <!-- Face scan instruction panel section -->
+                    <section class="panel instructions" id="panel-instructions" aria-label="How to record">
+                      <h2>Before you start</h2>
+                      <ul>
+                        <li>Good, even lighting; camera at eye level; stay still and avoid talking while recording.</li>
+                        <li>Tap <strong>Start camera</strong> when you are ready—we will ask for camera access, then guide your face into frame.</li>
+                      </ul>
+                      <div class="consent-box" id="face-consent-box">
+                        <label class="consent-check" for="face-consent-checkbox">
+                          <input type="checkbox" id="face-consent-checkbox" />
+                          <span>
+                            I consent to using my face-scan video to calculate my arousal score.
+                          </span>
+                        </label>
+                        <p class="hint consent-note">
+                          Your video is used only for scoring and will be discarded after processing.
+                        </p>
+                      </div>
+                      <p class="hint" id="models-status">Loading face detector…</p>
+                      <button type="button" class="btn primary" id="btn-start">Start camera</button>
+                      <p class="hint">
+                        Camera access requires <strong>HTTPS</strong> or <strong>http://localhost</strong>; opening the file directly
+                        from disk usually blocks the camera.
+                      </p>
+                    </section>
+              
+                    <!-- Face scan recording panel section -->
+                    <section class="panel scan hidden" id="panel-scan" aria-label="Face recording">
+                      <p class="step-label">Face scan</p>
+                      <div class="scan-intro card-inset">
+                        <h2 class="scan-intro-title">What to do</h2>
+                        <ul class="scan-intro-list">
+                          <li>Allow the camera when your browser prompts you.</li>
+                          <li>The blue scan effect follows your face on screen only — it is not part of the saved video.</li>
+                          <li>Center your face in the camera view until the status line turns green.</li>
+                          <li>If you move out of the target area, recording pauses until you move back.</li>
+                          <li>The saved clip is the <strong>full camera view</strong> at native resolution (no digital zoom or face crop).</li>
+                          <li>Hold steady—recording starts automatically after a short countdown.</li>
+                        </ul>
+                      </div>
+                      <div class="video-wrap" id="video-wrap">
+                        <div class="scan-overlay hidden" id="scan-overlay-camera" aria-live="polite">
+                          <p class="scan-overlay-title">Starting camera</p>
+                          <p class="scan-overlay-body" id="scan-overlay-camera-text">Requesting permission…</p>
+                          <div class="scan-overlay-progress" id="scan-overlay-progress" aria-hidden="true">
+                            <span></span><span></span><span></span>
+                          </div>
+                          <div class="scan-overlay-stages" aria-hidden="true">
+                            <span class="scan-stage" id="scan-stage-model">Model</span>
+                            <span class="scan-stage" id="scan-stage-camera">Camera</span>
+                            <span class="scan-stage" id="scan-stage-align">Alignment</span>
+                          </div>
+                          <p class="scan-overlay-tip" id="scan-overlay-tip">
+                            We are preparing the detector in the background for a smoother start.
+                          </p>
+                          <div class="scan-overlay-spinner" id="scan-overlay-camera-spinner" aria-hidden="true"></div>
+                        </div>
+                        <div class="scan-overlay overlay-error hidden" id="scan-overlay-denied" role="dialog" aria-modal="false" aria-labelledby="scan-denied-title">
+                          <p class="scan-overlay-title" id="scan-denied-title">Can't use the camera</p>
+                          <p class="scan-overlay-body" id="scan-overlay-denied-text"></p>
+                          <div class="scan-overlay-actions">
+                            <button type="button" class="btn primary" id="btn-camera-retry">Try again</button>
+                            <button type="button" class="btn" id="btn-camera-back">Back</button>
+                          </div>
+                        </div>
+                        <div class="flip-stack">
+                          <video id="preview" playsinline muted autoplay></video>
+                          <!-- Scan beam + tint on preview only; file is full camera stream. -->
+                          <div class="face-scan-fx hidden" id="face-scan-fx" aria-hidden="true">
+                            <div class="face-scan-fx-clip" id="face-scan-fx-clip">
+                              <div class="face-scan-target hidden" id="face-scan-target">
+                                <div class="face-scan-target-line"></div>
+                                <span class="face-scan-target-guide hidden"></span>
+                              </div>
+                              <div class="face-scan-fx-tint"></div>
+                              <div class="face-scan-fx-wave"></div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="chrome-overlay" id="chrome-overlay">
+                          <div class="scan-hud" aria-hidden="true">
+                            <div class="scan-hud-top">
+                              <p class="scan-hud-kicker">Measurement quality</p>
+                              <div class="scan-hud-stars" id="scan-hud-stars">
+                                <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                              </div>
+                              <p class="scan-hud-text" id="scan-hud-text">
+                                Hold still, keep steady lighting, and center your face.
+                              </p>
+                            </div>
+                            <div class="scan-face-guide">
+                              <span class="scan-corner scan-corner--tl"></span>
+                              <span class="scan-corner scan-corner--tr"></span>
+                              <span class="scan-corner scan-corner--bl"></span>
+                              <span class="scan-corner scan-corner--br"></span>
+                              <div class="scan-ring">
+                                <div class="scan-ring-track"></div>
+                                <div class="scan-ring-arc" id="scan-ring-arc"></div>
+                              </div>
+                            </div>
+                            <p class="scan-hud-bottom" id="scan-hud-bottom">Preparing…</p>
+                          </div>
+                          <p class="placement-status" id="placement-status" aria-live="polite">Looking for your face…</p>
+                          <div class="overlay fullscreen hidden" id="overlay-countdown" hidden>
+                            <span id="countdown-number" aria-live="polite"></span>
+                          </div>
+                          <div class="recording-pill hidden" id="recording-pill" aria-live="polite">
+                            <span class="dot"></span>
+                            <span id="recording-time">0:00</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="actions">
+                        <button type="button" class="btn" id="btn-cancel">Cancel</button>
+                      </div>
+                    </section>
+              
+                    <!-- Face scan result panel section -->
+                    <section class="panel result hidden" id="panel-result" aria-label="Recording complete">
+                      <p class="success">Recording finished.</p>
+                      <div class="result-actions">
+                        <button type="button" class="btn primary" id="btn-another">Record again</button>
+                      </div>
+                      <div class="upload-preview-card hidden" id="upload-preview-card">
+                        <p class="upload-preview-title">Recorded video preview</p>
+                        <video
+                          id="recorded-preview"
+                          class="recorded-preview"
+                          controls
+                          playsinline
+                          preload="metadata"
+                        ></video>
+                        <div class="upload-status-card" id="upload-status-card" aria-live="polite">
+                          <div class="upload-status-head">
+                            <span class="upload-status-label" id="upload-status-label">Ready to upload and calculate score</span>
+                          </div>
+                          <div class="upload-progress-track" id="upload-progress-track" aria-hidden="true">
+                            <div class="upload-progress-fill"></div>
+                            <span class="upload-progress-dot"></span>
+                          </div>
+                        </div>
+                      </div>
+                      <p class="hint" id="mime-hint"></p>
+                    </section>
+              
+                    <p class="error hidden" id="error-msg" role="alert"></p>
+                  </div>              
                 </div>
               </section>
 
               <!-- Fourth section, user will select their arousal lever after listening to music using slider -->
               <section class="wizard-step" data-step="4" aria-hidden="true">
-                <p>Select arousal lever</p>
+                <div class="valence-card">
+                  <p class="valence-kicker">Self-assessment</p>
+                  <h3 class="valence-title">How do you feel right now?</h3>
+                  <p class="valence-copy">
+                    Move the slider to describe your feeling: left means more unpleasant/negative,
+                    right means more pleasant/positive. This is only for visualization and is not
+                    sent to the backend.
+                  </p>
+                  <div class="valence-mood" aria-hidden="true">
+                    <span class="valence-emoji" id="valence-emoji">😐</span>
+                  </div>
+                  <label class="valence-label-row" for="valence-slider">
+                    <span class="valence-label">Valence Score</span>
+                    <strong id="valence-value">0%</strong>
+                  </label>
+                  <input
+                    class="valence-range"
+                    type="range"
+                    id="valence-slider"
+                    min="-100"
+                    max="100"
+                    step="1"
+                    value="0"
+                    aria-label="Valence score from negative to positive"
+                  />
+                  <div class="valence-ticks" aria-hidden="true">
+                    <span>Negative</span>
+                    <span>Neutral</span>
+                    <span>Positive</span>
+                  </div>
+                  <p class="valence-hint" id="valence-hint">Neutral</p>
+                </div>
               </section>
 
               <!-- Fifth section, score and user arousal lever will be visualized here -->
               <section class="wizard-step" data-step="5" aria-hidden="true">
-                <p>Score and arousal lever visualization</p>
+                <div class="emotion-card">
+                  <div class="emotion-header">
+                    <p class="emotion-kicker">Emotion map</p>
+                    <h3 class="emotion-title">Your emotional position after listening</h3>
+                    <p class="emotion-copy">
+                      We combine your self-reported valence (X-axis) with backend arousal from
+                      face scan (Y-axis) to place your current state in a 2D affect space.
+                    </p>
+                  </div>
+
+                  <div class="emotion-summary">
+                    <div class="emotion-primary-score">
+                      <p class="emotion-primary-label" id="emotion-primary-label">Focus score</p>
+                      <p class="emotion-primary-value" id="emotion-primary-value">0.0%</p>
+                      <p class="emotion-primary-sub" id="emotion-primary-sub">
+                        From face-scan arousal (Y-axis)
+                      </p>
+                    </div>
+                    <div class="emotion-meta">
+                      <p><span>Arousal (Y):</span> <strong id="emotion-arousal-value">0.0%</strong></p>
+                      <p><span>Valence (X):</span> <strong id="emotion-valence-value">0%</strong></p>
+                      <p><span>Quadrant:</span> <strong id="emotion-quadrant-value">—</strong></p>
+                    </div>
+                  </div>
+
+                  <!-- Emotion summary helper section -->
+                  <section class="emotion-simple" aria-label="Simple emotional summary">
+                    <div class="emotion-simple-head">
+                      <span class="emotion-simple-emoji" id="emotion-simple-emoji" aria-hidden="true">🙂</span>
+                      <div>
+                        <p class="emotion-simple-title" id="emotion-simple-title">Your quick result</p>
+                        <p class="emotion-simple-text" id="emotion-simple-text">
+                          We will explain your emotional state in simple language here.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="emotion-meter-block">
+                      <div class="emotion-meter-label-row">
+                        <span>Arousal (Focus/Relax)</span>
+                        <strong id="emotion-arousal-meter-label">—</strong>
+                      </div>
+                      <div class="emotion-meter-track">
+                        <div class="emotion-meter-fill arousal" id="emotion-arousal-meter-fill"></div>
+                      </div>
+                    </div>
+
+                    <div class="emotion-meter-block">
+                      <div class="emotion-meter-label-row">
+                        <span>Valence (Positive/Negative)</span>
+                        <strong id="emotion-valence-meter-label">—</strong>
+                      </div>
+                      <div class="emotion-meter-track">
+                        <div class="emotion-meter-fill valence" id="emotion-valence-meter-fill"></div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div class="emotion-map-wrap">
+                    <div class="emotion-map" id="emotion-map" role="img" aria-label="2D emotion map with valence on x-axis and arousal on y-axis">
+                      <div class="emotion-grid"></div>
+                      <div class="emotion-circumplex-ring" aria-hidden="true"></div>
+                      <div class="emotion-axis axis-x"></div>
+                      <div class="emotion-axis axis-y"></div>
+                      <div class="emotion-guide guide-x" id="emotion-guide-x" aria-hidden="true"></div>
+                      <div class="emotion-guide guide-y" id="emotion-guide-y" aria-hidden="true"></div>
+                      <div class="emotion-center-dot" aria-hidden="true"></div>
+                      <span class="emotion-axis-label axis-top">High arousal / activation</span>
+                      <span class="emotion-axis-label axis-bottom">Low arousal / relaxation</span>
+                      <span class="emotion-axis-label axis-left">Negative valence</span>
+                      <span class="emotion-axis-label axis-right">Positive valence</span>
+
+                      <span class="emotion-quadrant q1">Excited</span>
+                      <span class="emotion-quadrant q2">Stressed</span>
+                      <span class="emotion-quadrant q3">Sad / Depressed</span>
+                      <span class="emotion-quadrant q4">Content / Relaxed</span>
+
+                      <div class="emotion-point" id="emotion-map-point" aria-hidden="true"></div>
+                      <div class="emotion-point-label" id="emotion-point-label" aria-live="polite">
+                        V 0% · A 0.0%
+                      </div>
+                    </div>
+                  </div>
+
+                  <p class="emotion-interpretation" id="emotion-interpretation">
+                    Move through the flow to generate your position.
+                  </p>
+                </div>
               </section>
 
               <p class="wizard-error" data-wizard-error aria-live="polite"></p>
@@ -310,6 +648,7 @@
       <footer class="footer">
         <div class="container footer-inner">
           <div class="footer-top">
+            <!-- Footer newsletter section -->
             <section class="newsletter reveal">
               <a class="brand" href="/">
                 <img
@@ -352,6 +691,7 @@
             </section>
 
             <div class="footer-links reveal">
+              <!-- Footer links section -->
               <section class="footer-col">
                 <h4>Links</h4>
                 <a href="/#services">Services</a>
@@ -359,6 +699,7 @@
                 <a href="/#case-studies">Case studies</a>
                 <a href="/#benefits">Pricing</a>
               </section>
+              <!-- Footer pages section -->
               <section class="footer-col">
                 <h4>Pages</h4>
                 <a href="/">Home</a>
@@ -367,6 +708,7 @@
                 <a href="/contact/">Contact</a>
                 <a href="/404.html">404</a>
               </section>
+              <!-- Footer socials section -->
               <section class="footer-col">
                 <h4>Socials</h4>
                 <a
@@ -387,6 +729,10 @@
         </div>
       </footer>
     </div>
+    <script
+    src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"
+    crossorigin="anonymous"
+  > </script>
 
     <script src="/app.js" defer></script>
     <script src="/demo/js/demo.js" defer type="module"></script>
