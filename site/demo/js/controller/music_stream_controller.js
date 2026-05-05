@@ -11,6 +11,7 @@ export const MUSIC_ENDED_EVENT = "maika-demo:music-ended";
 let musicData = [];
 let controlsBound = false;
 let selectBound = false;
+let selectionLocked = false;
 
 /** Cached #music-select in the wizard. */
 function getSelect() {
@@ -77,7 +78,7 @@ function updateNowPlaying(song) {
 }
 
 /**
- * Hooks play/pause, seek bar, skips, volume — once only.
+ * Hooks play-only controls — once only.
  * Bails early if markup is incomplete; does not toggle `controlsBound` on failure so a later retry is possible.
  */
 function bindAudioControlsOnce() {
@@ -85,12 +86,17 @@ function bindAudioControlsOnce() {
 
   const audio = getMainAudio();
   const playBtn = document.getElementById("play-pause-btn");
+  const prevBtn = document.getElementById("prev-btn");
   const rewindBtn = document.getElementById("rewind-btn");
   const forwardBtn = document.getElementById("forward-btn");
+  const nextBtn = document.getElementById("next-btn");
   const progressBar = document.getElementById("progress-bar");
   const currentTimeEl = document.getElementById("current-time");
   const durationEl = document.getElementById("duration");
   const volumeSlider = document.getElementById("volume-slider");
+  const volumeContainer = volumeSlider
+    ? volumeSlider.closest(".volume-container")
+    : null;
 
   if (
     !audio ||
@@ -107,24 +113,41 @@ function bindAudioControlsOnce() {
 
   controlsBound = true;
 
+  // Restrict controls to "play only" flow.
+  if (prevBtn) prevBtn.hidden = true;
+  if (nextBtn) nextBtn.hidden = true;
+  if (rewindBtn) rewindBtn.hidden = true;
+  if (forwardBtn) forwardBtn.hidden = true;
+  if (volumeContainer) volumeContainer.hidden = true;
+  rewindBtn.disabled = true;
+  forwardBtn.disabled = true;
+  progressBar.disabled = true;
+  playBtn.textContent = "▶ Play";
+  playBtn.disabled = true;
+  playBtn.setAttribute("aria-label", "Play selected track");
+
   playBtn.addEventListener("click", () => {
     if (audio.paused && getSelect().value !== "") {
-      void audio.play().catch(() => {});
-      playBtn.textContent = "⏸";
-    } else {
-      audio.pause();
-      playBtn.textContent = "▶";
+      playBtn.textContent = "⏳ Starting…";
+      playBtn.disabled = true;
+      void audio.play().catch(() => {
+        playBtn.textContent = "▶ Play";
+        playBtn.disabled = false;
+      });
     }
   });
 
   audio.addEventListener("play", () => {
-    playBtn.textContent = "⏸";
+    playBtn.textContent = "⏸ Playing";
+    playBtn.disabled = false;
   });
   audio.addEventListener("pause", () => {
-    playBtn.textContent = "▶";
+    playBtn.textContent = "▶ Play";
+    playBtn.disabled = false;
   });
   audio.addEventListener("ended", () => {
-    playBtn.textContent = "▶";
+    playBtn.textContent = "▶ Play";
+    playBtn.disabled = false;
     setRangeFillPercent(progressBar, 0);
     progressBar.value = "0";
     currentTimeEl.textContent = "0:00";
@@ -147,25 +170,27 @@ function bindAudioControlsOnce() {
     durationEl.textContent = formatTime(audio.duration);
   });
 
-  progressBar.addEventListener("input", () => {
-    const d = audio.duration;
-    const pct = Number(progressBar.value);
-    setRangeFillPercent(progressBar, pct);
-    if (!Number.isFinite(d) || d <= 0) return;
-    audio.currentTime = (pct / 100) * d;
-  });
+  // Keep seek interaction code for future use, but disable dragging for now.
+  // progressBar.addEventListener("input", () => {
+  //   const d = audio.duration;
+  //   const pct = Number(progressBar.value);
+  //   setRangeFillPercent(progressBar, pct);
+  //   if (!Number.isFinite(d) || d <= 0) return;
+  //   audio.currentTime = (pct / 100) * d;
+  // });
 
-  rewindBtn.addEventListener("click", () => {
-    audio.currentTime = Math.max(0, audio.currentTime - 10);
-  });
-  forwardBtn.addEventListener("click", () => {
-    const d = audio.duration;
-    if (Number.isFinite(d) && d > 0) {
-      audio.currentTime = Math.min(d, audio.currentTime + 10);
-    } else {
-      audio.currentTime += 10;
-    }
-  });
+  // Keep skip controls code for future use, but disable/hide these controls for now.
+  // rewindBtn.addEventListener("click", () => {
+  //   audio.currentTime = Math.max(0, audio.currentTime - 10);
+  // });
+  // forwardBtn.addEventListener("click", () => {
+  //   const d = audio.duration;
+  //   if (Number.isFinite(d) && d > 0) {
+  //     audio.currentTime = Math.min(d, audio.currentTime + 10);
+  //   } else {
+  //     audio.currentTime += 10;
+  //   }
+  // });
 
   audio.volume = Number(volumeSlider.value) || 0;
   setRangeFillPercent(volumeSlider, (Number(volumeSlider.value) || 0) * 100);
@@ -192,6 +217,9 @@ function onMusicSelectChange() {
   const idx = select.value;
 
   if (idx === "") {
+    if (selectionLocked) {
+      return;
+    }
     audio.pause();
     audio.removeAttribute("src");
     if (fallback) {
@@ -204,17 +232,31 @@ function onMusicSelectChange() {
     }
     if (currentTimeEl) currentTimeEl.textContent = "0:00";
     if (durationEl) durationEl.textContent = "0:00";
-    if (playBtn) playBtn.textContent = "▶";
+    if (playBtn) playBtn.textContent = "▶ Play";
+    if (playBtn) playBtn.disabled = true;
     return;
   }
 
   const song = musicData[Number(idx)];
   if (!song?.url) return;
 
+  if (!selectionLocked) {
+    selectionLocked = true;
+    select.disabled = true;
+  }
+
   audio.pause();
+  if (playBtn) {
+    playBtn.textContent = "⏳ Loading…";
+    playBtn.disabled = true;
+  }
   audio.src = song.url;
+  audio.preload = "auto";
+  audio.load();
   if (fallback) {
     fallback.src = song.url;
+    fallback.preload = "auto";
+    fallback.load();
   }
 
   if (progressBar) {
@@ -223,9 +265,26 @@ function onMusicSelectChange() {
   }
   if (currentTimeEl) currentTimeEl.textContent = "0:00";
   if (durationEl) durationEl.textContent = "0:00";
-  if (playBtn) playBtn.textContent = "▶";
 
   updateNowPlaying(song);
+
+  const markPlayable = () => {
+    if (playBtn && getSelect().value !== "") {
+      playBtn.textContent = "▶ Play";
+      playBtn.disabled = false;
+    }
+  };
+
+  const markFailed = () => {
+    if (playBtn && getSelect().value !== "") {
+      playBtn.textContent = "⚠ Unable to load";
+      playBtn.disabled = true;
+    }
+  };
+
+  audio.addEventListener("canplay", markPlayable, { once: true });
+  audio.addEventListener("loadeddata", markPlayable, { once: true });
+  audio.addEventListener("error", markFailed, { once: true });
 }
 
 /** Registers a single listener on #music-select. */
@@ -241,7 +300,7 @@ function bindMusicSelectOnce() {
  */
 export async function fetchMusicData() {
   try {
-    const jsonUrl = new URL("../data/music.json", import.meta.url);
+    const jsonUrl = new URL("../../data/music.json", import.meta.url);
     const response = await fetch(jsonUrl.href);
     const data = await response.json();
     musicData = Array.isArray(data) ? data : [];
@@ -257,4 +316,70 @@ export async function fetchMusicData() {
     musicData = [];
     populateMusicSelect();
   }
+}
+
+export function stopMusicPlayback() {
+  const audio = getMainAudio();
+  const fallback = document.getElementById("audio-player");
+  const playBtn = document.getElementById("play-pause-btn");
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+  }
+  if (fallback) {
+    fallback.pause();
+    fallback.currentTime = 0;
+  }
+  if (playBtn) {
+    playBtn.textContent = "▶ Play";
+  }
+}
+
+/**
+ * Full demo reset: unlock track picker, clear sources, HUD, and “now playing” labels.
+ * Call when returning to landing (e.g. wizard Done) so the next run starts clean.
+ */
+export function resetMusicDemoSession() {
+  selectionLocked = false;
+
+  const select = getSelect();
+  const audio = getMainAudio();
+  const fallback = document.getElementById("audio-player");
+  const playBtn = document.getElementById("play-pause-btn");
+  const progressBar = document.getElementById("progress-bar");
+  const currentTimeEl = document.getElementById("current-time");
+  const durationEl = document.getElementById("duration");
+
+  if (select) {
+    select.disabled = false;
+    select.value = "";
+  }
+
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.removeAttribute("src");
+  }
+  if (fallback) {
+    fallback.pause();
+    fallback.currentTime = 0;
+    fallback.removeAttribute("src");
+  }
+
+  if (progressBar) {
+    progressBar.value = "0";
+    setRangeFillPercent(progressBar, 0);
+  }
+  if (currentTimeEl) currentTimeEl.textContent = "0:00";
+  if (durationEl) durationEl.textContent = "0:00";
+
+  if (playBtn) {
+    playBtn.textContent = "▶ Play";
+    playBtn.disabled = true;
+  }
+
+  const titleEl = document.getElementById("title");
+  const artistEl = document.getElementById("artist");
+  if (titleEl) titleEl.textContent = "Song Title";
+  if (artistEl) artistEl.textContent = "Artist Name";
 }
