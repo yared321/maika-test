@@ -1,111 +1,364 @@
-import { fetchMusicData, MUSIC_ENDED_EVENT } from "./music_streamer.js";
+import {
+  fetchMusicData,
+  MUSIC_ENDED_EVENT,
+  stopMusicPlayback,
+} from "./controller/music_stream_controller.js";
+import { ValenceSliderController } from "./controller/slider_controller.js";
+import { ScoreVisualizationController } from "./controller/score_controller.js";
+import {handleDemoAccess, unlockDemoFlow, setDemoAccessError} from "./controller/demo_access_controller.js"
+import {saveDemographics, validateAgeField} from "./controller/demographic_form_controller.js"
+import {
+  applyRecordedPreview,
+  clearRecordedPreview,
+  resetUploadState,
+  startFaceUpload,
+  stopUploadPulse,
+  syncFaceStepNextGate,
+} from "./controller/face_scan_upload_controller.js";
 
-// fetch the music data at the start of the page and load
+import { initFaceScanFlow } from "./controller/face_scan_flow_controller.js";
 
-await fetchMusicData();
+  
+const VALENCE_X_AXIS_DEFAULT = 0;
 
-(() => {
+// Preload music data on page load to improve perceived performance later.
+try {
+  await fetchMusicData();
+} catch (error) {
+  console.error("Failed to fetch music data:", error);
+}
+
+// Initialize face scan flow early, since model loading can be slow.
+try {
+  await initFaceScanFlow();
+} catch (error) {
+  console.error("Failed to initialize face scan flow:", error);
+}
+
+initDemoWizard();
+
+/**
+ * Initialize the demo wizard by collecting DOM nodes, state, and controllers.
+ * This starts the demo experience and prepares the view and event wiring.
+ */
+function initDemoWizard() {
+  const dom = getDomReferences();
+  if (!dom.wizardForm) return;
+
+  const state = createInitialState(dom.steps.length);
+  const controllers = createControllers(dom, state);
+
+  initializeUi(dom, state);
+  bindEvents(dom, state, controllers);
+}
+
+/**
+ * Grab all needed DOM references used across the demo flow.
+ * Returns an object of frequently reused DOM elements.
+ */
+function getDomReferences() {
   const wizardForm = document.getElementById("demoWizardForm");
-  if (!wizardForm) return;
-
-  const steps = Array.from(wizardForm.querySelectorAll(".wizard-step"));
-
-  const backButton = wizardForm.querySelector('[data-action="back"]');
-  const nextButton = wizardForm.querySelector('[data-action="next"]');
-
-  const stepCurrent = wizardForm.querySelector("[data-step-current]");
-  const stepTotal = wizardForm.querySelector("[data-step-total]");
-  const errorMessage = wizardForm.querySelector("[data-wizard-error]");
-
-  let age = null;
-  let gender = null;
-  let currentStep = 0;
-  const lastStep = steps.length - 1;
-
-  const nextButtonLabels = new Map([
-    [0, "Listen Music"],
-    [1, "Proceed to Face Scan"],
-    [2, "Give feedback"],
-    [3, "Calculate Scores"],
-    [4, "Done"],
-  ]);
-
-  if (stepTotal) stepTotal.textContent = String(steps.length);
-
-  // Input validation for age and gender input
-  const getActiveFields = () =>
-    Array.from(steps[currentStep].querySelectorAll("input, select, textarea"));
-
-  const validateStep = () => {
-    const activeFields = getActiveFields();
-
-    for (const field of activeFields) {
-      if (!field.checkValidity()) {
-        field.reportValidity();
-        return false;
-      }
-    }
-    return true;
+  return {
+    demoLanding: document.getElementById("demo-landing"),
+    demoFlow: document.getElementById("demo-flow"),
+    demoAccessInput: document.getElementById("demo-access-code"),
+    demoAccessButton: document.getElementById("demo-access-cta"),
+    demoAccessError: document.getElementById("demo-access-error"),
+    wizardForm,
+    steps: wizardForm ? Array.from(wizardForm.querySelectorAll(".wizard-step")) : [],
+    backButton: wizardForm?.querySelector('[data-action="back"]'),
+    nextButton: wizardForm?.querySelector('[data-action="next"]'),
+    ageInput: wizardForm?.querySelector("#age"),
+    valenceSlider: wizardForm?.querySelector("#valence-slider"),
+    valenceValue: wizardForm?.querySelector("#valence-value"),
+    valenceHint: wizardForm?.querySelector("#valence-hint"),
+    valenceEmoji: wizardForm?.querySelector("#valence-emoji"),
+    stepCurrent: wizardForm?.querySelector("[data-step-current]"),
+    stepTotal: wizardForm?.querySelector("[data-step-total]"),
+    errorMessage: wizardForm?.querySelector("[data-wizard-error]"),
+    uploadPreviewCard: wizardForm?.querySelector("#upload-preview-card"),
+    recordedPreview: wizardForm?.querySelector("#recorded-preview"),
+    uploadStatusCard: wizardForm?.querySelector("#upload-status-card"),
+    uploadStatusLabel: wizardForm?.querySelector("#upload-status-label"),
+    uploadProgressTrack: wizardForm?.querySelector("#upload-progress-track"),
   };
+}
 
-  // Advance wizard step when Next is clicked (after validation).
-  const updateStep = (targetStep) => {
-    if (targetStep == 1) {
-      callUserInformationSubmitted();
-    }
-
-    if (nextButton) {
-      nextButton.textContent = nextButtonLabels.get(targetStep) ?? "Next";
-    }
-
-    currentStep = targetStep;
-
-    steps.forEach((step, index) => {
-      const isActive = index === currentStep;
-
-      step.classList.toggle("is-active", isActive);
-      step.setAttribute("aria-hidden", String(!isActive));
-    });
-
-    if (stepCurrent) stepCurrent.textContent = String(currentStep + 1);
-    if (errorMessage) errorMessage.textContent = "";
-
-    const isFirst = currentStep === 0;
-    const isLast = currentStep === lastStep;
-
-    if (backButton) backButton.disabled = isFirst;
-    if (nextButton) nextButton.hidden = isLast;
-
-    const nextFocusable = steps[currentStep].querySelector(
-      "input, select, textarea, button",
-    );
-    if (nextFocusable) nextFocusable.focus();
+/**
+ * Create the initial wizard state object with progress, upload, and assessment data.
+ * The state object drives UI behavior and upload handling.
+ */
+function createInitialState(stepCount) {
+  return {
+    currentStep: 0,
+    lastStep: Math.max(0, stepCount - 1),
+    demographics: {
+      age: "",
+      gender: "",
+    },
+    upload: {
+      recordedPreviewUrl: "",
+      pulseTimer: 0,
+      isInFlight: false,
+      completed: false,
+      pendingBlob: null,
+      pendingMime: "",
+      pendingConsent: true,
+    },
+    assessment: {
+      latestResult: null,
+    },
+    emotionViz: {
+      xAxisValencePercent: VALENCE_X_AXIS_DEFAULT,
+      xAxisValenceLabel: "Neutral",
+      xAxisValenceEmoji: "😐",
+    },
+    nextButtonLabels: new Map([
+      [0, "Listen Music"],
+      [1, "Proceed to Face Scan"],
+      [2, "Continue"],
+      [3, "See Scoring Results"],
+      [4, "Done"],
+    ]),
   };
+}
+
+/**
+ * Instantiate and initialize UI controllers for score visualization and valence slider.
+ * These controllers keep the UI responsive to state changes.
+ */
+function createControllers(dom, state) {
+  const score = new ScoreVisualizationController({
+    root: dom.wizardForm,
+    getValence: () => state.emotionViz.xAxisValencePercent,
+    getArousal: () => state.assessment.latestResult?.arousal ?? null,
+  });
+
+  const valence = new ValenceSliderController({
+    sliderEl: dom.valenceSlider,
+    valueEl: dom.valenceValue,
+    hintEl: dom.valenceHint,
+    emojiEl: dom.valenceEmoji,
+    defaultValue: VALENCE_X_AXIS_DEFAULT,
+    onChange: (valenceState) => {
+      state.emotionViz.xAxisValencePercent = valenceState.xAxisValencePercent;
+      state.emotionViz.xAxisValenceLabel = valenceState.xAxisValenceLabel;
+      state.emotionViz.xAxisValenceEmoji = valenceState.xAxisValenceEmoji;
+    },
+  });
+  valence.init();
+
+  return { score, valence };
+}
+
+/**
+ * Set initial UI visibility and step indicators for the demo wizard.
+ * Hides the flow until access is granted and shows the landing screen.
+ */
+function initializeUi(dom, state) {
+  if (dom.stepTotal) dom.stepTotal.textContent = String(dom.steps.length);
+  if (dom.demoFlow) {
+    dom.demoFlow.hidden = true;
+    dom.demoFlow.classList.add("hidden");
+  }
+  if (dom.demoLanding) {
+    dom.demoLanding.hidden = false;
+    dom.demoLanding.classList.remove("hidden");
+  }
+  updateStep(dom, state, 0, { focus: false });
+}
+
+/**
+ * Wire up event handlers for form controls, wizard navigation, and face-scan flow.
+ * Handles button clicks, custom events, and page unload cleanup.
+ */
+function bindEvents(dom, state, controllers) {
+  dom.ageInput?.addEventListener("input", () => validateAgeField(dom));
+  dom.ageInput?.addEventListener("change", () => validateAgeField(dom));
 
   document.addEventListener(MUSIC_ENDED_EVENT, () => {
-    if (currentStep === 1) updateStep(2);
+    if (state.currentStep === 1) {
+      updateStep(dom, state, 2);
+    }
   });
 
-  const callUserInformationSubmitted = () => {
-    age = wizardForm.querySelector("[name=age]").value;
-    gender = wizardForm.querySelector("[name=gender]").value;
-
-  };
-
-  //   Listener for both back and next button
-  backButton?.addEventListener("click", () => {
-    if (currentStep > 0) updateStep(currentStep - 1);
+  document.addEventListener("maika-demo:face-scan-blob-ready", (ev) => {
+    const detail = ev?.detail;
+    if (!detail?.blob) return;
+    state.upload.pendingBlob = detail.blob;
+    state.upload.pendingMime = detail.recordedMime || detail.blob.type || "";
+    state.upload.pendingConsent = detail.consentGiven !== false;
+    state.upload.completed = false;
+    applyRecordedPreview(dom, state, detail.blob);
+    void startFaceUpload(dom, state, setWizardError);
+    syncFaceStepNextGate(dom, state);
   });
 
-  nextButton?.addEventListener("click", () => {
-    if (!validateStep()) {
-      if (errorMessage)
-        errorMessage.textContent =
-          "Please complete this step before continuing.";
+  document.addEventListener("maika-demo:face-scan-blob-cleared", () => {
+    resetUploadState(state);
+    clearRecordedPreview(dom, state);
+    syncFaceStepNextGate(dom, state);
+  });
+
+  dom.backButton?.addEventListener("click", () => {
+    if (state.currentStep > 0) {
+      updateStep(dom, state, state.currentStep - 1);
+    }
+  });
+
+  dom.nextButton?.addEventListener("click", () => {
+    void handleNextClick(dom, state, controllers);
+  });
+
+  dom.demoAccessButton?.addEventListener("click", () => {
+    handleDemoAccess(dom, state, updateStep);
+  });
+  dom.demoAccessInput?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      handleDemoAccess(dom, state, updateStep);
+    }
+  });
+
+  globalThis.addEventListener("beforeunload", () => {
+    stopUploadPulse(state);
+    if (state.upload.recordedPreviewUrl) {
+      URL.revokeObjectURL(state.upload.recordedPreviewUrl);
+    }
+  });
+}
+
+
+/**
+ * Move the wizard to a specific step and update UI, buttons, and focus.
+ * Also saves demographics or stops playback as needed for the new step.
+ */
+function updateStep(dom, state, targetStep, options = {}) {
+  if (targetStep === 1) {
+    saveDemographics(dom, state);
+  }
+  if (targetStep === 2) {
+    stopMusicPlayback();
+  }
+
+  if (targetStep === 4) {
+    options.controllers?.score?.render?.();
+  }
+
+  state.currentStep = targetStep;
+  dom.steps.forEach((step, index) => {
+    const isActive = index === state.currentStep;
+    step.classList.toggle("is-active", isActive);
+    step.setAttribute("aria-hidden", String(!isActive));
+  });
+
+  if (dom.stepCurrent) dom.stepCurrent.textContent = String(state.currentStep + 1);
+  setWizardError(dom, "");
+  if (dom.nextButton) {
+    dom.nextButton.textContent = state.nextButtonLabels.get(targetStep) ?? "Next";
+    dom.nextButton.hidden = false;
+  }
+  if (dom.backButton) dom.backButton.disabled = state.currentStep === 0;
+
+  syncFaceStepNextGate(dom, state);
+
+  if (dom.demoFlow?.hidden) return;
+  if (options.focus === false) return;
+  const focusable = dom.steps[state.currentStep]?.querySelector(
+    "input, select, textarea, button",
+  );
+  focusable?.focus();
+}
+
+
+/**
+ * Display an error message inside the wizard UI.
+ * If no error target exists, it safely does nothing.
+ */
+function setWizardError(dom, message) {
+  if (!dom.errorMessage) return;
+  dom.errorMessage.textContent = message || "";
+}
+
+/**
+ * Validate all visible inputs on the current wizard step.
+ * Reports the first invalid field and returns false when validation fails.
+ */
+function validateCurrentStep(dom, state) {
+  validateAgeField(dom);
+  const activeFields = Array.from(
+    dom.steps[state.currentStep]?.querySelectorAll("input, select, textarea") || [],
+  );
+  for (const field of activeFields) {
+    if (!field.checkValidity()) {
+      field.reportValidity();
+      return false;
+    }
+  }
+  return true;
+}
+
+
+/**
+ * Handle the wizard's Next button behavior for navigation and upload flow.
+ * Advances steps, triggers upload, or returns to landing as appropriate.
+ */
+async function handleNextClick(dom, state, controllers) {
+  if (!validateCurrentStep(dom, state)) {
+    setWizardError(dom, "Please complete this step before continuing.");
+    return;
+  }
+
+  if (state.currentStep === 2) {
+    if (state.upload.isInFlight) {
+      setWizardError(dom, "Uploading video and calculating score. Please wait.");
       return;
     }
-    if (currentStep < lastStep) updateStep(currentStep + 1);
-  });
+    if (state.upload.completed) {
+      updateStep(dom, state, 3);
+      return;
+    }
+    if (state.upload.pendingBlob) {
+      await startFaceUpload(dom, state, setWizardError);
+      return;
+    }
+    setWizardError(dom, "Complete a face recording first.");
+    return;
+  }
 
-  updateStep(0);
-})();
+  if (state.currentStep === state.lastStep) {
+    returnToLandingPage(dom, state);
+    return;
+  }
+
+  const nextStep = state.currentStep + 1;
+  updateStep(dom, state, nextStep, {
+    controllers: controllers,
+  });
+}
+
+/**
+ * Return the demo to the landing page and reset the wizard state.
+ * Stops playback, clears upload state, and resets the access form.
+ */
+function returnToLandingPage(dom, state) {
+  stopMusicPlayback();
+  resetUploadState(state);
+  clearRecordedPreview(dom, state);
+
+  if (dom.demoFlow) {
+    dom.demoFlow.hidden = true;
+    dom.demoFlow.classList.add("hidden");
+  }
+  if (dom.demoLanding) {
+    dom.demoLanding.hidden = false;
+    dom.demoLanding.classList.remove("hidden");
+  }
+
+  if (dom.demoAccessInput) {
+    dom.demoAccessInput.value = "";
+    dom.demoAccessInput.focus();
+  }
+  setDemoAccessError(dom, "");
+  updateStep(dom, state, 0, { focus: false });
+}
