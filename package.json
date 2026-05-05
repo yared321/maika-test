@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/maika-dev-proxy.mjs",
+    "start:proxy": "node scripts/maika-rppg-proxy.mjs"
+  }
+}
