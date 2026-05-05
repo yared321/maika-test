@@ -1,6 +1,7 @@
 import {
   fetchMusicData,
   MUSIC_ENDED_EVENT,
+  resetMusicDemoSession,
   stopMusicPlayback,
 } from "./controller/music_stream_controller.js";
 import { ValenceSliderController } from "./controller/slider_controller.js";
@@ -16,7 +17,10 @@ import {
   syncFaceStepNextGate,
 } from "./controller/face_scan_upload_controller.js";
 
-import { initFaceScanFlow } from "./controller/face_scan_flow_controller.js";
+import {
+  initFaceScanFlow,
+  resetFaceScanFlowForLanding,
+} from "./controller/face_scan_flow_controller.js";
 
   
 const VALENCE_X_AXIS_DEFAULT = 0;
@@ -344,6 +348,8 @@ async function handleNextClick(dom, state, controllers) {
  */
 function returnToLandingPage(dom, state, controllers) {
   stopMusicPlayback();
+  resetMusicDemoSession();
+  resetFaceScanFlowForLanding();
   resetUploadState(state);
   clearRecordedPreview(dom, state);
 
