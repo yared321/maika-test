@@ -123,25 +123,31 @@ function bindAudioControlsOnce() {
   forwardBtn.disabled = true;
   progressBar.disabled = true;
   playBtn.textContent = "▶ Play";
+  playBtn.disabled = true;
   playBtn.setAttribute("aria-label", "Play selected track");
 
   playBtn.addEventListener("click", () => {
     if (audio.paused && getSelect().value !== "") {
       playBtn.textContent = "⏳ Starting…";
+      playBtn.disabled = true;
       void audio.play().catch(() => {
         playBtn.textContent = "▶ Play";
+        playBtn.disabled = false;
       });
     }
   });
 
   audio.addEventListener("play", () => {
     playBtn.textContent = "⏸ Playing";
+    playBtn.disabled = false;
   });
   audio.addEventListener("pause", () => {
     playBtn.textContent = "▶ Play";
+    playBtn.disabled = false;
   });
   audio.addEventListener("ended", () => {
     playBtn.textContent = "▶ Play";
+    playBtn.disabled = false;
     setRangeFillPercent(progressBar, 0);
     progressBar.value = "0";
     currentTimeEl.textContent = "0:00";
@@ -227,6 +233,7 @@ function onMusicSelectChange() {
     if (currentTimeEl) currentTimeEl.textContent = "0:00";
     if (durationEl) durationEl.textContent = "0:00";
     if (playBtn) playBtn.textContent = "▶ Play";
+    if (playBtn) playBtn.disabled = true;
     return;
   }
 
@@ -239,6 +246,10 @@ function onMusicSelectChange() {
   }
 
   audio.pause();
+  if (playBtn) {
+    playBtn.textContent = "⏳ Loading…";
+    playBtn.disabled = true;
+  }
   audio.src = song.url;
   audio.preload = "auto";
   audio.load();
@@ -254,9 +265,26 @@ function onMusicSelectChange() {
   }
   if (currentTimeEl) currentTimeEl.textContent = "0:00";
   if (durationEl) durationEl.textContent = "0:00";
-  if (playBtn) playBtn.textContent = "▶ Play";
 
   updateNowPlaying(song);
+
+  const markPlayable = () => {
+    if (playBtn && getSelect().value !== "") {
+      playBtn.textContent = "▶ Play";
+      playBtn.disabled = false;
+    }
+  };
+
+  const markFailed = () => {
+    if (playBtn && getSelect().value !== "") {
+      playBtn.textContent = "⚠ Unable to load";
+      playBtn.disabled = true;
+    }
+  };
+
+  audio.addEventListener("canplay", markPlayable, { once: true });
+  audio.addEventListener("loadeddata", markPlayable, { once: true });
+  audio.addEventListener("error", markFailed, { once: true });
 }
 
 /** Registers a single listener on #music-select. */
@@ -305,4 +333,53 @@ export function stopMusicPlayback() {
   if (playBtn) {
     playBtn.textContent = "▶ Play";
   }
+}
+
+/**
+ * Full demo reset: unlock track picker, clear sources, HUD, and “now playing” labels.
+ * Call when returning to landing (e.g. wizard Done) so the next run starts clean.
+ */
+export function resetMusicDemoSession() {
+  selectionLocked = false;
+
+  const select = getSelect();
+  const audio = getMainAudio();
+  const fallback = document.getElementById("audio-player");
+  const playBtn = document.getElementById("play-pause-btn");
+  const progressBar = document.getElementById("progress-bar");
+  const currentTimeEl = document.getElementById("current-time");
+  const durationEl = document.getElementById("duration");
+
+  if (select) {
+    select.disabled = false;
+    select.value = "";
+  }
+
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.removeAttribute("src");
+  }
+  if (fallback) {
+    fallback.pause();
+    fallback.currentTime = 0;
+    fallback.removeAttribute("src");
+  }
+
+  if (progressBar) {
+    progressBar.value = "0";
+    setRangeFillPercent(progressBar, 0);
+  }
+  if (currentTimeEl) currentTimeEl.textContent = "0:00";
+  if (durationEl) durationEl.textContent = "0:00";
+
+  if (playBtn) {
+    playBtn.textContent = "▶ Play";
+    playBtn.disabled = true;
+  }
+
+  const titleEl = document.getElementById("title");
+  const artistEl = document.getElementById("artist");
+  if (titleEl) titleEl.textContent = "Song Title";
+  if (artistEl) artistEl.textContent = "Artist Name";
 }
