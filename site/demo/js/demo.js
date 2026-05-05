@@ -4,7 +4,7 @@ import {
   stopMusicPlayback,
 } from "./controller/music_stream_controller.js";
 import { ValenceSliderController } from "./controller/slider_controller.js";
-import { ScoreVisualizationController } from "./controller/score_controller.js";
+import { ScoreVisualizationController } from "./controller/emotion_score_controller.js";
 import {handleDemoAccess, unlockDemoFlow, setDemoAccessError} from "./controller/demo_access_controller.js"
 import {saveDemographics, validateAgeField} from "./controller/demographic_form_controller.js"
 import {
@@ -129,7 +129,7 @@ function createInitialState(stepCount) {
  * These controllers keep the UI responsive to state changes.
  */
 function createControllers(dom, state) {
-  const score = new ScoreVisualizationController({
+  const score = ScoreVisualizationController.create({
     root: dom.wizardForm,
     getValence: () => state.emotionViz.xAxisValencePercent,
     getArousal: () => state.assessment.latestResult?.arousal ?? null,
