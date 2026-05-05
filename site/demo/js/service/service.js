@@ -2,9 +2,7 @@
  * Minimal face scan uploader (module version).
  */
 
-const DEFAULT_ENDPOINT =
-  "https://maika-rppg-web-staging-x4o27bgmjq-oa.a.run.app/v1/web/assess";
-const LOCAL_PROXY_ENDPOINT = "/api/rppg/v1/web/assess";
+const SAME_ORIGIN_PROXY_ENDPOINT = "/api/face-assess/v1/web/assess";
 const DEFAULT_TIMEOUT_MS = 120000;
 const UPLOAD_FORMDATA_FIELD = "video";
 
@@ -27,29 +25,14 @@ export const FaceScanUpload = {
   timeoutMs: DEFAULT_TIMEOUT_MS,
 };
 
-// Resolve which upload endpoint to use based on the environment.
-// Uses a local proxy for localhost, otherwise falls back to the default endpoint.
+// Resolve upload endpoint using a same-origin proxy route.
+// Secrets and upstream auth headers should be injected server-side by that proxy.
 export function resolveEndpoint() {
-  let endpointCandidate = "";
-  
-  const h = (globalThis.location && globalThis.location.hostname) || "";
-    endpointCandidate =
-      h === "localhost" || h === "127.0.0.1"
-        ? LOCAL_PROXY_ENDPOINT
-        : DEFAULT_ENDPOINT;
-
   try {
-    return new URL(endpointCandidate, globalThis.location.href).href;
+    return new URL(SAME_ORIGIN_PROXY_ENDPOINT, globalThis.location.href).href;
   } catch (e) {
     return "";
   }
-}
-
-// Get a header value from a meta tag.
-// Returns a trimmed string or empty string if no value is found.
-function getHeaderValue(metaName) {
-  const meta = document.querySelector(`meta[name="${metaName}"]`);
-  return meta ? String(meta.getAttribute("content") || "").trim() : "";
 }
 
 // Ensure the video blob uses a consistent video format mp4/webm type for upload.
@@ -89,7 +72,7 @@ function parseJsonSafely(text) {
   }
 }
 
-// Upload a recorded face scan to the configured endpoint with metadata and optional headers.
+// Upload a recorded face scan to the configured endpoint with metadata.
 // Returns a promise resolving to the response status, parsed data, and any error message.
 export function postRecording(blob, endpointUrl, options) {
   const recordedMimeHint = (options && options.recordedMime) || blob.type || "";
@@ -148,14 +131,6 @@ export function postRecording(blob, endpointUrl, options) {
     `face-scan-${Date.now()}.${ext}`,
   );
 
-  const headers = {};
-  const publicKey = getHeaderValue("x-maika-public-key");
-  const captcha = getHeaderValue(
-    "x-maika-captcha-token"
-  );
-  if (publicKey) headers["X-Maika-Public-Key"] = publicKey;
-  if (captcha) headers["X-Maika-Captcha-Token"] = captcha;
-
   const abortController =
     typeof AbortController !== "undefined" ? new AbortController() : null;
     
@@ -173,7 +148,6 @@ export function postRecording(blob, endpointUrl, options) {
   const fetchOptions = {
     method: "POST",
     body: formData,
-    headers: Object.keys(headers).length ? headers : undefined,
     signal: abortController ? abortController.signal : undefined,
   };
 
