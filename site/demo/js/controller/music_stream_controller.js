@@ -11,6 +11,7 @@ export const MUSIC_ENDED_EVENT = "maika-demo:music-ended";
 let musicData = [];
 let controlsBound = false;
 let selectBound = false;
+let selectionLocked = false;
 
 /** Cached #music-select in the wizard. */
 function getSelect() {
@@ -77,7 +78,7 @@ function updateNowPlaying(song) {
 }
 
 /**
- * Hooks play/pause, seek bar, skips, volume — once only.
+ * Hooks play-only controls — once only.
  * Bails early if markup is incomplete; does not toggle `controlsBound` on failure so a later retry is possible.
  */
 function bindAudioControlsOnce() {
@@ -85,12 +86,17 @@ function bindAudioControlsOnce() {
 
   const audio = getMainAudio();
   const playBtn = document.getElementById("play-pause-btn");
+  const prevBtn = document.getElementById("prev-btn");
   const rewindBtn = document.getElementById("rewind-btn");
   const forwardBtn = document.getElementById("forward-btn");
+  const nextBtn = document.getElementById("next-btn");
   const progressBar = document.getElementById("progress-bar");
   const currentTimeEl = document.getElementById("current-time");
   const durationEl = document.getElementById("duration");
   const volumeSlider = document.getElementById("volume-slider");
+  const volumeContainer = volumeSlider
+    ? volumeSlider.closest(".volume-container")
+    : null;
 
   if (
     !audio ||
@@ -107,24 +113,33 @@ function bindAudioControlsOnce() {
 
   controlsBound = true;
 
+  // Restrict controls to "play only" flow.
+  if (prevBtn) prevBtn.hidden = true;
+  if (nextBtn) nextBtn.hidden = true;
+  if (rewindBtn) rewindBtn.hidden = true;
+  if (forwardBtn) forwardBtn.hidden = true;
+  if (volumeContainer) volumeContainer.hidden = true;
+  rewindBtn.disabled = true;
+  forwardBtn.disabled = true;
+  progressBar.disabled = true;
+  playBtn.textContent = "▶ Play";
+  playBtn.setAttribute("aria-label", "Play selected track");
+
   playBtn.addEventListener("click", () => {
     if (audio.paused && getSelect().value !== "") {
+      playBtn.textContent = "⏳ Starting…";
       void audio.play().catch(() => {});
-      playBtn.textContent = "⏸";
-    } else {
-      audio.pause();
-      playBtn.textContent = "▶";
     }
   });
 
   audio.addEventListener("play", () => {
-    playBtn.textContent = "⏸";
+    playBtn.textContent = "⏸ Playing";
   });
   audio.addEventListener("pause", () => {
-    playBtn.textContent = "▶";
+    playBtn.textContent = "▶ Play";
   });
   audio.addEventListener("ended", () => {
-    playBtn.textContent = "▶";
+    playBtn.textContent = "▶ Play";
     setRangeFillPercent(progressBar, 0);
     progressBar.value = "0";
     currentTimeEl.textContent = "0:00";
@@ -147,25 +162,27 @@ function bindAudioControlsOnce() {
     durationEl.textContent = formatTime(audio.duration);
   });
 
-  progressBar.addEventListener("input", () => {
-    const d = audio.duration;
-    const pct = Number(progressBar.value);
-    setRangeFillPercent(progressBar, pct);
-    if (!Number.isFinite(d) || d <= 0) return;
-    audio.currentTime = (pct / 100) * d;
-  });
+  // Keep seek interaction code for future use, but disable dragging for now.
+  // progressBar.addEventListener("input", () => {
+  //   const d = audio.duration;
+  //   const pct = Number(progressBar.value);
+  //   setRangeFillPercent(progressBar, pct);
+  //   if (!Number.isFinite(d) || d <= 0) return;
+  //   audio.currentTime = (pct / 100) * d;
+  // });
 
-  rewindBtn.addEventListener("click", () => {
-    audio.currentTime = Math.max(0, audio.currentTime - 10);
-  });
-  forwardBtn.addEventListener("click", () => {
-    const d = audio.duration;
-    if (Number.isFinite(d) && d > 0) {
-      audio.currentTime = Math.min(d, audio.currentTime + 10);
-    } else {
-      audio.currentTime += 10;
-    }
-  });
+  // Keep skip controls code for future use, but disable/hide these controls for now.
+  // rewindBtn.addEventListener("click", () => {
+  //   audio.currentTime = Math.max(0, audio.currentTime - 10);
+  // });
+  // forwardBtn.addEventListener("click", () => {
+  //   const d = audio.duration;
+  //   if (Number.isFinite(d) && d > 0) {
+  //     audio.currentTime = Math.min(d, audio.currentTime + 10);
+  //   } else {
+  //     audio.currentTime += 10;
+  //   }
+  // });
 
   audio.volume = Number(volumeSlider.value) || 0;
   setRangeFillPercent(volumeSlider, (Number(volumeSlider.value) || 0) * 100);
@@ -192,6 +209,9 @@ function onMusicSelectChange() {
   const idx = select.value;
 
   if (idx === "") {
+    if (selectionLocked) {
+      return;
+    }
     audio.pause();
     audio.removeAttribute("src");
     if (fallback) {
@@ -204,12 +224,17 @@ function onMusicSelectChange() {
     }
     if (currentTimeEl) currentTimeEl.textContent = "0:00";
     if (durationEl) durationEl.textContent = "0:00";
-    if (playBtn) playBtn.textContent = "▶";
+    if (playBtn) playBtn.textContent = "▶ Play";
     return;
   }
 
   const song = musicData[Number(idx)];
   if (!song?.url) return;
+
+  if (!selectionLocked) {
+    selectionLocked = true;
+    select.disabled = true;
+  }
 
   audio.pause();
   audio.src = song.url;
@@ -223,7 +248,7 @@ function onMusicSelectChange() {
   }
   if (currentTimeEl) currentTimeEl.textContent = "0:00";
   if (durationEl) durationEl.textContent = "0:00";
-  if (playBtn) playBtn.textContent = "▶";
+  if (playBtn) playBtn.textContent = "▶ Play";
 
   updateNowPlaying(song);
 }
@@ -241,7 +266,7 @@ function bindMusicSelectOnce() {
  */
 export async function fetchMusicData() {
   try {
-    const jsonUrl = new URL("../data/music.json", import.meta.url);
+    const jsonUrl = new URL("../../data/music.json", import.meta.url);
     const response = await fetch(jsonUrl.href);
     const data = await response.json();
     musicData = Array.isArray(data) ? data : [];
@@ -256,5 +281,22 @@ export async function fetchMusicData() {
     console.error("Error fetching music data:", error);
     musicData = [];
     populateMusicSelect();
+  }
+}
+
+export function stopMusicPlayback() {
+  const audio = getMainAudio();
+  const fallback = document.getElementById("audio-player");
+  const playBtn = document.getElementById("play-pause-btn");
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+  }
+  if (fallback) {
+    fallback.pause();
+    fallback.currentTime = 0;
+  }
+  if (playBtn) {
+    playBtn.textContent = "▶ Play";
   }
 }
