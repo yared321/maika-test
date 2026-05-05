@@ -1,4 +1,8 @@
-import { postRecording, resolveEndpoint } from "../service/service.js";
+import {
+  generateFaceScanRequestId,
+  postRecording,
+  resolveEndpoint,
+} from "../service/service.js";
 
 const UPLOAD_STATUS = {
   idle: "Ready to upload and calculate score",
@@ -181,14 +185,12 @@ export async function startFaceUpload(dom, state, setWizardError) {
   syncFaceStepNextGate(dom, state);
 
   try {
-    // Contract requires a random integer in [0..9] for request_id.
-    const requestIdDigit = Math.floor(Math.random() * 10);
     const uploadResult = await postRecording(state.upload.pendingBlob, endpoint, {
       recordedMime: state.upload.pendingMime || state.upload.pendingBlob.type || "",
       age: age,
       sex: sex,
       consent: true,
-      requestId: requestIdDigit,
+      requestId: generateFaceScanRequestId(),
     });
 
     if (uploadResult.ok) {

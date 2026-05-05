@@ -76,6 +76,15 @@ export class ValenceSliderController {
     if (this.onChange) this.onChange(this.getState());
   }
 
+  /**
+   * Public setter used by the wizard when resetting to defaults.
+   * @param {number|string} value
+   */
+  setValue(value) {
+    if (this.sliderEl) this.sliderEl.value = String(value);
+    this.updateFromRaw(value);
+  }
+
   getState() {
     return {
       xAxisValencePercent: this.state.xAxisValencePercent,

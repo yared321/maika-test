@@ -66,6 +66,26 @@
     font-size: 0.92rem;
   }
 
+  /* Override global typography for the "Before you start" heading. */
+  .panel.instructions h2,
+  .instructions h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+
+  /* Scoped typography for the "Before you start" panel body text. */
+  .panel.instructions ul {
+    font-size: 0.84rem;
+    line-height: 1.45;
+  }
+
+  .panel.instructions li + li {
+    margin-top: 0.2rem;
+  }
+
   .consent-box {
     margin-bottom: 0.85rem;
     padding: 0.75rem 0.9rem;

@@ -25,6 +25,36 @@ export const FaceScanUpload = {
   timeoutMs: DEFAULT_TIMEOUT_MS,
 };
 
+/**
+ * Unique `request_id` for each face-assess upload (correlation / idempotency hint).
+ * Prefers `crypto.randomUUID()`, then RFC-4122-style v4 from `getRandomValues`, else time + random.
+ * @returns {string}
+ */
+export function generateFaceScanRequestId() {
+  try {
+    const c = globalThis.crypto;
+    if (c && typeof c.randomUUID === "function") return c.randomUUID();
+    if (c && typeof c.getRandomValues === "function") {
+      const b = new Uint8Array(16);
+      c.getRandomValues(b);
+      b[6] = (b[6] & 0x0f) | 0x40;
+      b[8] = (b[8] & 0x3f) | 0x80;
+      const hex = Array.from(b, (x) =>
+        x.toString(16).padStart(2, "0"),
+      ).join("");
+      return (
+        `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-` +
+        `${hex.slice(16, 20)}-${hex.slice(20)}`
+      );
+    }
+  } catch (e) {
+    /* fall through */
+  }
+  const t = Date.now().toString(36);
+  const r = Math.floor(Math.random() * 2147483647).toString(36);
+  return `${t}-${r}`;
+}
+
 // Resolve upload endpoint using a same-origin proxy route.
 // Secrets and upstream auth headers should be injected server-side by that proxy.
 export function resolveEndpoint() {

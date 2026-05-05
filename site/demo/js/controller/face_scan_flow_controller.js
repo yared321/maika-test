@@ -39,6 +39,12 @@ var faceModelsLoadFailed = false;
 var modelsLoadPromise = null;
 var cameraDOM = null;
 
+/** Active camera + recording refs after successful init (for wizard landing reset). */
+var faceScanFlowHandles = {
+  camera: null,
+  recording: null,
+};
+
 /**
  * Collect all face scan DOM elements used by the runtime flow.
  * @returns {Record<string, HTMLElement|null>}
@@ -431,6 +437,19 @@ function applyRecordingOutcomeHint(baseTxt, uploadResult, endpointConfigured) {
 }
 
 /**
+ * Same as Cancel / Record again: stop streams, panels, overlays, blob bridge.
+ * Safe to call from demo wizard when exiting the flow.
+ */
+export function resetFaceScanFlowForLanding() {
+  if (!cameraDOM) return;
+  resetUiToStart(faceScanFlowHandles.camera, faceScanFlowHandles.recording);
+  if (cameraDOM.faceConsentCheckbox) {
+    cameraDOM.faceConsentCheckbox.checked = false;
+  }
+  syncStartButtonAvailability();
+}
+
+/**
  * Reset the camera/recording flow UI back to the start page.
  */
 function resetUiToStart(camera, recording) {
@@ -645,6 +664,8 @@ export function initFaceScanFlow() {
     },
   );
   camera = createCameraController(recording);
+  faceScanFlowHandles.camera = camera;
+  faceScanFlowHandles.recording = recording;
   bindFaceScanEvents(camera, recording);
   initPlacementObserver();
 
