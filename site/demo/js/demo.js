@@ -69,6 +69,7 @@ function getDomReferences() {
     backButton: wizardForm?.querySelector('[data-action="back"]'),
     nextButton: wizardForm?.querySelector('[data-action="next"]'),
     ageInput: wizardForm?.querySelector("#age"),
+    genderInput: wizardForm?.querySelector("#gender"),
     valenceSlider: wizardForm?.querySelector("#valence-slider"),
     valenceValue: wizardForm?.querySelector("#valence-value"),
     valenceHint: wizardForm?.querySelector("#valence-hint"),
@@ -327,7 +328,7 @@ async function handleNextClick(dom, state, controllers) {
   }
 
   if (state.currentStep === state.lastStep) {
-    returnToLandingPage(dom, state);
+    returnToLandingPage(dom, state, controllers);
     return;
   }
 
@@ -341,10 +342,29 @@ async function handleNextClick(dom, state, controllers) {
  * Return the demo to the landing page and reset the wizard state.
  * Stops playback, clears upload state, and resets the access form.
  */
-function returnToLandingPage(dom, state) {
+function returnToLandingPage(dom, state, controllers) {
   stopMusicPlayback();
   resetUploadState(state);
   clearRecordedPreview(dom, state);
+
+  // Reset state to initial values
+  const initialState = createInitialState(dom.steps.length);
+  Object.assign(state, initialState);
+
+  // Clear demographics inputs
+  if (dom.ageInput) dom.ageInput.value = "";
+  if (dom.genderInput) dom.genderInput.value = "";
+
+  // Reset valence slider to default
+  if (controllers.valence) {
+    controllers.valence.setValue(VALENCE_X_AXIS_DEFAULT);
+  }
+
+  // Clear score visualization
+  state.assessment.latestResult = null;
+  if (controllers.score) {
+    controllers.score.render();
+  }
 
   if (dom.demoFlow) {
     dom.demoFlow.hidden = true;
