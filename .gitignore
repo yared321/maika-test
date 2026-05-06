@@ -1,4 +1,7 @@
 # Keep repo focused on deployable site
+.env
+.env.*
+!.env.example
 *.zip
 video-frames/
 video-frames-intro/
