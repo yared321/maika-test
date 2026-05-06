@@ -6,15 +6,12 @@
 function bindDomElements(controller) {
   controller.emotionMap = controller.root.querySelector("#emotion-map");
   controller.emotionMapPoint = controller.root.querySelector("#emotion-map-point");
-  controller.emotionPointLabel = controller.root.querySelector("#emotion-point-label");
+  controller.emotionModeLayer = controller.root.querySelector("#emotion-mode-layer");
   controller.emotionGuideX = controller.root.querySelector("#emotion-guide-x");
   controller.emotionGuideY = controller.root.querySelector("#emotion-guide-y");
   controller.emotionPrimaryLabel = controller.root.querySelector("#emotion-primary-label");
   controller.emotionPrimaryValue = controller.root.querySelector("#emotion-primary-value");
-  controller.emotionPrimarySub = controller.root.querySelector("#emotion-primary-sub");
-  controller.emotionArousalValue = controller.root.querySelector("#emotion-arousal-value");
-  controller.emotionValenceValue = controller.root.querySelector("#emotion-valence-value");
-  controller.emotionQuadrantValue = controller.root.querySelector("#emotion-quadrant-value");
+  // controller.emotionPrimarySub = controller.root.querySelector("#emotion-primary-sub");
   controller.emotionInterpretation = controller.root.querySelector("#emotion-interpretation");
   controller.emotionSimpleEmoji = controller.root.querySelector("#emotion-simple-emoji");
   controller.emotionSimpleTitle = controller.root.querySelector("#emotion-simple-title");
@@ -134,6 +131,79 @@ function computeMapPosition(valence, arousal) {
     mapLeft: clampPlotPercent(((valence + 100) / 200) * 100),
     mapTop: clampPlotPercent(100 - ((arousal + 100) / 200) * 100),
   };
+}
+
+const EMOTION_MODE_POINTS = [
+  { label: "Angry", valence: 0, arousal: 90 },
+  { label: "Afraid", valence: -44, arousal: 74 },
+  { label: "Stressed", valence: -70, arousal: 52 },
+  { label: "Annoyed", valence: -20, arousal: 28 },
+  { label: "Frustrated", valence: -56, arousal: 12 },
+  { label: "Disappointed", valence: -72, arousal: -2 },
+  { label: "Apathetic", valence: -52, arousal: -28 },
+  { label: "Sad", valence: -74, arousal: -68 },
+  { label: "Bored", valence: -20, arousal: -88 },
+  { label: "Melancholic", valence: -28, arousal: -52 },
+  { label: "Neutral", valence: 0, arousal: 0 },
+  { label: "Aroused", valence: 28, arousal: 74 },
+  { label: "Excited", valence: 70, arousal: 56 },
+  { label: "Focused", valence: 42, arousal: 24 },
+  { label: "Happy", valence: 72, arousal: 8 },
+  { label: "Pleased", valence: 72, arousal: -2 },
+  { label: "Content", valence: 54, arousal: -34 },
+  { label: "Relaxed", valence: 48, arousal: -64 },
+  { label: "Calm", valence: 26, arousal: -88 },
+];
+
+function getNearestEmotionModes(valence, arousal, count) {
+  return EMOTION_MODE_POINTS
+    .map((m) => {
+      const dx = valence - m.valence;
+      const dy = arousal - m.arousal;
+      return {
+        label: m.label,
+        dist2: dx * dx + dy * dy,
+      };
+    })
+    .sort((a, b) => a.dist2 - b.dist2)
+    .slice(0, Math.max(1, count))
+    .map((m) => m.label);
+}
+
+function initEmotionModeLayer(controller) {
+  if (!controller.emotionModeLayer) return;
+  controller.emotionModeLayer.innerHTML = "";
+  controller.emotionModeEls = new Map();
+
+  for (const mode of EMOTION_MODE_POINTS) {
+    const pos = computeMapPosition(mode.valence, mode.arousal);
+    const el = document.createElement("span");
+    el.className = "emotion-mode-tag";
+    el.textContent = mode.label;
+    el.style.left = `${pos.mapLeft.toFixed(2)}%`;
+    el.style.top = `${pos.mapTop.toFixed(2)}%`;
+    controller.emotionModeLayer.appendChild(el);
+    controller.emotionModeEls.set(mode.label, el);
+  }
+}
+
+function setActiveEmotionModes(controller, valence, arousal) {
+  if (!controller.emotionModeEls) return;
+  const nearest = getNearestEmotionModes(valence, arousal, 3);
+  const nearestSet = new Set(nearest);
+
+  for (const [label, el] of controller.emotionModeEls.entries()) {
+    const isActive = nearestSet.has(label);
+    el.classList.toggle("is-active", isActive);
+    el.classList.toggle("is-primary", nearest[0] === label);
+  }
+}
+
+function clearActiveEmotionModes(controller) {
+  if (!controller.emotionModeEls) return;
+  for (const el of controller.emotionModeEls.values()) {
+    el.classList.remove("is-active", "is-primary");
+  }
 }
 
 /**
@@ -258,29 +328,6 @@ function updateArousalSummary(controller, valence, arousal, quadrant) {
   if (controller.emotionPrimaryValue) {
     controller.emotionPrimaryValue.textContent = primaryMagnitude.toFixed(1) + "%";
   }
-  if (controller.emotionPrimarySub) {
-    controller.emotionPrimarySub.textContent =
-      arousal >= 0
-        ? "Positive arousal means activation/focus (Y-axis up)."
-        : "Negative arousal means deactivation/relaxation (Y-axis down).";
-  }
-  if (controller.emotionArousalValue) {
-    controller.emotionArousalValue.textContent = signedPercent(arousal, 1);
-  }
-  if (controller.emotionValenceValue) {
-    controller.emotionValenceValue.textContent = signedPercent(valence, 0);
-  }
-  if (controller.emotionQuadrantValue) controller.emotionQuadrantValue.textContent = quadrant;
-  if (controller.emotionInterpretation) {
-    controller.emotionInterpretation.textContent =
-      "Your point sits in the " +
-      quadrant +
-      " quadrant: valence " +
-      signedPercent(valence, 0) +
-      " on X-axis and arousal " +
-      signedPercent(arousal, 1) +
-      " on Y-axis.";
-  }
 }
 
 /**
@@ -326,13 +373,7 @@ function updateMapAndGuides(controller, valence, arousal, mapLeft, mapTop) {
     controller.emotionMap.style.setProperty("--point-x", mapLeft.toFixed(2) + "%");
     controller.emotionMap.style.setProperty("--point-y", mapTop.toFixed(2) + "%");
   }
-  if (controller.emotionPointLabel) {
-    controller.emotionPointLabel.textContent =
-      "V " + signedPercent(valence, 0) + " · A " + signedPercent(arousal, 1);
-    controller.emotionPointLabel.classList.toggle("below", mapTop < 18);
-    controller.emotionPointLabel.classList.toggle("edge-right", mapLeft > 84);
-    controller.emotionPointLabel.classList.toggle("edge-left", mapLeft < 16);
-  }
+  setActiveEmotionModes(controller, valence, arousal);
   if (controller.emotionGuideX) {
     controller.emotionGuideX.style.left = (valence >= 0 ? 50 : mapLeft).toFixed(2) + "%";
     controller.emotionGuideX.style.top = mapTop.toFixed(2) + "%";
@@ -358,15 +399,10 @@ function updateMapAndGuides(controller, valence, arousal, mapLeft, mapTop) {
 function renderWithoutArousal(controller, valence) {
   if (controller.emotionPrimaryLabel) controller.emotionPrimaryLabel.textContent = "Arousal score";
   if (controller.emotionPrimaryValue) controller.emotionPrimaryValue.textContent = "—";
-  if (controller.emotionPrimarySub) {
-    controller.emotionPrimarySub.textContent =
-      "No backend arousal available yet. Complete the face scan and calculate score first.";
-  }
-  if (controller.emotionArousalValue) controller.emotionArousalValue.textContent = "—";
-  if (controller.emotionValenceValue) {
-    controller.emotionValenceValue.textContent = signedPercent(valence, 0);
-  }
-  if (controller.emotionQuadrantValue) controller.emotionQuadrantValue.textContent = "—";
+  // if (controller.emotionPrimarySub) {
+  //   controller.emotionPrimarySub.textContent =
+  //     "No backend arousal available yet. Complete the face scan and calculate score first.";
+  // }
   if (controller.emotionInterpretation) {
     controller.emotionInterpretation.textContent =
       "We need the face-scan arousal score to place your final point on the map.";
@@ -393,10 +429,7 @@ function renderWithoutArousal(controller, valence) {
       controller.emotionMap.style.setProperty("--point-y", "50%");
     }
   }
-  if (controller.emotionPointLabel) {
-    controller.emotionPointLabel.textContent = "V " + signedPercent(valence, 0) + " · A —";
-    controller.emotionPointLabel.classList.remove("below", "edge-right", "edge-left");
-  }
+  clearActiveEmotionModes(controller);
   if (controller.emotionGuideX) {
     const fallbackLeft = clampPlotPercent(((valence + 100) / 200) * 100);
     const fallbackWidth = Math.abs(fallbackLeft - 50);
@@ -477,6 +510,7 @@ function createScoreVisualizationController(options = {}) {
       typeof options.getArousal === "function" ? options.getArousal : () => null,
   };
   bindDomElements(controller);
+  initEmotionModeLayer(controller);
 
   return {
     render: function render() {

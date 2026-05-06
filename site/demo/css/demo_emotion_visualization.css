@@ -22,6 +22,7 @@
 
 .emotion-title {
   margin: 0;
+  margin-bottom: 0 0 0.35rem 0;
   font-size: clamp(1.05rem, 2.6vw, 1.35rem);
   font-weight: 700;
   color: var(--text);
@@ -37,103 +38,101 @@
 }
 
 .emotion-summary {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(170px, 1fr);
-  gap: 0.8rem;
-  margin-bottom: 1rem;
+  display: block;
+  margin: 0.95rem 0 1.05rem;
 }
 
 .emotion-primary-score {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 0.8rem 0.9rem;
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  padding: 0.95rem 1rem 0.9rem;
+  text-align: center;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(118, 240, 191, 0.08), transparent 58%),
+    radial-gradient(circle at 100% 0%, rgba(76, 227, 255, 0.08), transparent 56%),
+    rgba(255, 255, 255, 0.025);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
 .emotion-primary-label {
   margin: 0;
-  color: var(--text-soft);
-  font-size: 0.8rem;
+  color: rgba(228, 241, 255, 0.9);
+  font-size: 0.92rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.07em;
+  font-weight: 700;
 }
 
 .emotion-primary-value {
-  margin: 0.2rem 0 0.15rem;
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 1.1;
+  margin: 0.3rem 0 0.2rem;
+  font-size: clamp(1.85rem, 5.3vw, 2.5rem);
+  font-weight: 760;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  text-shadow:
+    0 0 12px rgba(118, 240, 191, 0.18),
+    0 0 18px rgba(76, 227, 255, 0.16);
 }
 
-.emotion-primary-sub {
+/* .emotion-primary-sub {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.emotion-meta {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 0.8rem 0.9rem;
-  background: rgba(255, 255, 255, 0.03);
-  display: grid;
-  gap: 0.35rem;
-}
-
-.emotion-meta p {
-  margin: 0;
-  font-size: 0.86rem;
-  color: var(--text-soft);
-}
-
-.emotion-meta p span {
-  color: var(--text-muted);
-}
+  color: rgba(216, 232, 255, 0.84);
+  font-size: 0.92rem;
+  line-height: 1.4;
+  max-width: 42ch;
+} */
 
 .emotion-map-wrap {
   margin: 0.2rem 0 0.9rem;
 }
 
 .emotion-simple {
-  margin: 0.2rem 0 0.95rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  padding: 0.85rem 0.9rem;
-  background: rgba(255, 255, 255, 0.03);
+  margin: 0.25rem 0 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 1.1rem 1.05rem 1rem;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 126, 234, 0.14), transparent 56%),
+    radial-gradient(circle at 100% 0%, rgba(76, 227, 255, 0.14), transparent 56%),
+    rgba(255, 255, 255, 0.05);
   display: grid;
-  gap: 0.75rem;
+  gap: 0.95rem;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
 }
 
 .emotion-simple-head {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  justify-content: center;
+  gap: 0.85rem;
+  text-align: center;
+}
+
+.emotion-simple-head > div {
+  display: grid;
+  justify-items: center;
 }
 
 .emotion-simple-emoji {
   display: inline-grid;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.7rem;
+  height: 2.7rem;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  font-size: 1.1rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 1.45rem;
   line-height: 1;
 }
 
 .emotion-simple-title {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: clamp(1.22rem, 3.4vw, 1.62rem);
+  font-weight: 800;
   color: var(--text);
-}
-
-.emotion-simple-text {
-  margin: 0.2rem 0 0;
-  font-size: 0.84rem;
-  color: var(--text-soft);
-  line-height: 1.4;
+  letter-spacing: -0.015em;
+  line-height: 1.18;
 }
 
 .emotion-meter-block {
@@ -146,14 +145,15 @@
   justify-content: space-between;
   align-items: center;
   gap: 0.6rem;
-  font-size: 0.8rem;
+  font-size: 1.03rem;
   color: var(--text-soft);
+  font-weight: 600;
 }
 
 .emotion-meter-track {
-  height: 8px;
+  height: 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
   overflow: hidden;
 }
 
@@ -307,12 +307,7 @@
 }
 
 .emotion-quadrant {
-  position: absolute;
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  display: none;
 }
 
 .emotion-quadrant.q1 {
@@ -513,6 +508,57 @@
   transform: translate(12px, 10px);
 }
 
+.emotion-mode-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.emotion-mode-tag {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: rgba(236, 244, 255, 0.96);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(223, 122, 254, 0.12), transparent 62%),
+    radial-gradient(circle at 100% 0%, rgba(76, 227, 255, 0.12), transparent 62%),
+    rgba(7, 10, 19, 0.7);
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.26),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease,
+    color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+  white-space: nowrap;
+}
+
+.emotion-mode-tag.is-active {
+  opacity: 1;
+}
+
+.emotion-mode-tag.is-primary {
+  font-weight: 800;
+  color: #ffffff;
+  border-color: rgba(118, 240, 191, 0.5);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(118, 240, 191, 0.18) inset,
+    0 0 14px rgba(118, 240, 191, 0.28);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
 .emotion-map:hover .emotion-point {
   transform: translate(-50%, -50%) scale(1.08);
 }
@@ -633,6 +679,11 @@
   .emotion-point-label {
     font-size: 0.72rem;
     padding: 0.24rem 0.5rem;
+  }
+
+  .emotion-mode-tag {
+    font-size: 0.68rem;
+    padding: 0.18rem 0.46rem;
   }
 }
 
