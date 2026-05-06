@@ -1,4 +1,4 @@
-const DEMO_ACCESS_CODE = "1234";
+const DEMO_ACCESS_CODES = new Set(["HELSANA", "MAIKA26", "PROXYMM"]);
 
 export function handleDemoAccess(dom, state, updateStep) {
   const entered = String(dom.demoAccessInput?.value || "").trim();
@@ -7,7 +7,7 @@ export function handleDemoAccess(dom, state, updateStep) {
     dom.demoAccessInput?.focus();
     return;
   }
-  if (entered !== DEMO_ACCESS_CODE) {
+  if (!DEMO_ACCESS_CODES.has(entered.toUpperCase())) {
     setDemoAccessError(dom, "Invalid code. Please try again.");
     dom.demoAccessInput?.focus();
     return;

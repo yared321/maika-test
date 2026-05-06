@@ -318,7 +318,7 @@ function tickCameraRecordFraming(state) {
       H.setPlacementUi(
         state.el.placementStatus,
         "good",
-        "Recording — move out of frame to pause.",
+        "Recording...",
       );
       syncFaceScanFx(state, box);
 

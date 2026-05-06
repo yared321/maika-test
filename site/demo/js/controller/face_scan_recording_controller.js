@@ -5,24 +5,6 @@ import * as H from "../utils/face_scan_helpers.js";
 import { FaceScanUpload } from "../service/service.js";
 
 /**
- * Build a short human-readable recording summary for UI hints.
- * @param {Blob} blob
- * @param {number} w0
- * @param {number} h0
- * @returns {string}
- */
-function buildRecordingBaseHint(blob, w0, h0) {
-  var mb = (blob.size / 1024 / 1024).toFixed(1);
-  return (
-    (w0 ? "Resolution " + w0 + "×" + h0 + ". " : "") +
-    "~" +
-    mb +
-    " MB" +
-    (blob.type ? " · " + blob.type : "")
-  );
-}
-
-/**
  * Reveal result panel and hide scan panel after recording completes.
  * @param {Record<string, HTMLElement|null>} el
  */
@@ -61,10 +43,6 @@ function startRecordingPillTicker(ctx, el, cfg) {
  */
 function handleDeferredUploadFlow(blob, lastMime, baseTxt, el, bridges, resolve) {
   bridges.onRecordingBlobReady(blob, lastMime || blob.type || "", baseTxt);
-  if (el.mimeHint) {
-    el.mimeHint.textContent =
-      baseTxt + ". Use Calculate Score in the demo wizard to submit to the API.";
-  }
   showRecordingResultPanel(el);
   resolve();
 }
@@ -147,7 +125,7 @@ function createRecorderStopHandler(state, Camera, resolve) {
     state.chunks.length = 0;
     state.bridges.hideError();
 
-    var baseTxt = buildRecordingBaseHint(blob, w0, h0);
+    var baseTxt = "";
     var defer = state.bridges.deferAssessUpload === true;
     if (defer && typeof state.bridges.onRecordingBlobReady === "function") {
       handleDeferredUploadFlow(
