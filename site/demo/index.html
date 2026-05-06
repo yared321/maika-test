@@ -104,6 +104,7 @@
           <a data-nav-link href="/about/">About</a>
           <a data-nav-link href="/blog/">Blog</a>
           <a data-nav-link href="/contact/">Contact</a>
+          <a data-nav-link href="/demo/">Demo</a>
           <a
             class="btn btn-primary small"
             href="https://cal.eu/maika-ai/maika-intro-call"
@@ -126,7 +127,7 @@
               </h1>
               <p class="demo-landing__copy">
                 This experience combines music listening, a short consented face scan, and immediate
-                scoring to estimate arousal and visualize your current emotional position.
+                scoring to estimate biometric response and visualize your current emotional position.
               </p>
               <div class="demo-landing__points" aria-hidden="true">
                 <span>Consent before camera access</span>
@@ -149,11 +150,11 @@
               </article>
               <article class="demo-strip-card">
                 <p class="demo-strip-card__step">Step 4</p>
-                <p class="demo-strip-card__label">Set your current valence with the slider</p>
+                <p class="demo-strip-card__label">Tell us how you felt</p>
               </article>
               <article class="demo-strip-card">
                 <p class="demo-strip-card__step">Step 5</p>
-                <p class="demo-strip-card__label">View arousal + valence emotion map</p>
+                <p class="demo-strip-card__label">See the result</p>
               </article>
             </div>
             <div class="demo-access-card">
@@ -341,7 +342,7 @@
                 <div class="field-grid field-grid-single">
                   <div class="app">
                     <header class="header">
-                      <h1>Face scan</h1>
+                      <h2>Face scan</h2>
                     </header>
               
                     <!-- Face scan instruction panel section -->
@@ -364,10 +365,10 @@
                       </div>
                       <p class="hint" id="models-status">Loading face detector…</p>
                       <button type="button" class="btn primary" id="btn-start">Start camera</button>
-                      <p class="hint">
+                      <!-- <p class="hint">
                         Camera access requires <strong>HTTPS</strong> or <strong>http://localhost</strong>; opening the file directly
                         from disk usually blocks the camera.
-                      </p>
+                      </p> -->
                     </section>
               
                     <!-- Face scan recording panel section -->
@@ -497,7 +498,7 @@
               <!-- Fourth section, user will select their arousal lever after listening to music using slider -->
               <section class="wizard-step" data-step="4" aria-hidden="true">
                 <div class="valence-card">
-                  <p class="valence-kicker">Self-assessment</p>
+                  <!-- <p class="valence-kicker">Self-assessment</p> -->
                   <h3 class="valence-title">How do you feel right now?</h3>
                   <p class="valence-copy">
                     Move the slider to describe your feeling: left means more unpleasant/negative,
@@ -508,7 +509,7 @@
                     <span class="valence-emoji" id="valence-emoji">😐</span>
                   </div>
                   <label class="valence-label-row" for="valence-slider">
-                    <span class="valence-label">Valence Score</span>
+                    <!-- <span class="valence-label">Valence Score</span> -->
                     <strong id="valence-value">0%</strong>
                   </label>
                   <input
@@ -534,27 +535,12 @@
               <section class="wizard-step" data-step="5" aria-hidden="true">
                 <div class="emotion-card">
                   <div class="emotion-header">
-                    <p class="emotion-kicker">Emotion map</p>
-                    <h3 class="emotion-title">Your emotional position after listening</h3>
-                    <p class="emotion-copy">
+                    <!-- <p class="emotion-kicker">Emotion map</p> -->
+                    <h3 class="emotion-title">Your Session Result</h3>
+                    <!-- <p class="emotion-copy">
                       We combine your self-reported valence (X-axis) with backend arousal from
                       face scan (Y-axis) to place your current state in a 2D affect space.
-                    </p>
-                  </div>
-
-                  <div class="emotion-summary">
-                    <div class="emotion-primary-score">
-                      <p class="emotion-primary-label" id="emotion-primary-label">Focus score</p>
-                      <p class="emotion-primary-value" id="emotion-primary-value">0.0%</p>
-                      <p class="emotion-primary-sub" id="emotion-primary-sub">
-                        From face-scan arousal (Y-axis)
-                      </p>
-                    </div>
-                    <div class="emotion-meta">
-                      <p><span>Arousal (Y):</span> <strong id="emotion-arousal-value">0.0%</strong></p>
-                      <p><span>Valence (X):</span> <strong id="emotion-valence-value">0%</strong></p>
-                      <p><span>Quadrant:</span> <strong id="emotion-quadrant-value">—</strong></p>
-                    </div>
+                    </p> -->
                   </div>
 
                   <!-- Emotion summary helper section -->
@@ -563,15 +549,12 @@
                       <span class="emotion-simple-emoji" id="emotion-simple-emoji" aria-hidden="true">🙂</span>
                       <div>
                         <p class="emotion-simple-title" id="emotion-simple-title">Your quick result</p>
-                        <p class="emotion-simple-text" id="emotion-simple-text">
-                          We will explain your emotional state in simple language here.
-                        </p>
                       </div>
                     </div>
 
                     <div class="emotion-meter-block">
                       <div class="emotion-meter-label-row">
-                        <span>Arousal (Focus/Relax)</span>
+                        <span>Activation (Focus/Relax)</span>
                         <strong id="emotion-arousal-meter-label">—</strong>
                       </div>
                       <div class="emotion-meter-track">
@@ -581,7 +564,7 @@
 
                     <div class="emotion-meter-block">
                       <div class="emotion-meter-label-row">
-                        <span>Valence (Positive/Negative)</span>
+                        <span>Positivity (Positive/Negative)</span>
                         <strong id="emotion-valence-meter-label">—</strong>
                       </div>
                       <div class="emotion-meter-track">
@@ -589,6 +572,16 @@
                       </div>
                     </div>
                   </section>
+
+                  <div class="emotion-summary">
+                    <div class="emotion-primary-score">
+                      <p class="emotion-primary-label" id="emotion-primary-label">Focus score</p>
+                      <p class="emotion-primary-value" id="emotion-primary-value">0.0%</p>
+                      <!-- <p class="emotion-primary-sub" id="emotion-primary-sub">
+                        From face-scan arousal (Y-axis)
+                      </p> -->
+                    </div>
+                  </div>
 
                   <div class="emotion-map-wrap">
                     <div class="emotion-map" id="emotion-map" role="img" aria-label="2D emotion map with valence on x-axis and arousal on y-axis">
@@ -599,26 +592,19 @@
                       <div class="emotion-guide guide-x" id="emotion-guide-x" aria-hidden="true"></div>
                       <div class="emotion-guide guide-y" id="emotion-guide-y" aria-hidden="true"></div>
                       <div class="emotion-center-dot" aria-hidden="true"></div>
-                      <span class="emotion-axis-label axis-top">High arousal / activation</span>
-                      <span class="emotion-axis-label axis-bottom">Low arousal / relaxation</span>
-                      <span class="emotion-axis-label axis-left">Negative valence</span>
-                      <span class="emotion-axis-label axis-right">Positive valence</span>
-
-                      <span class="emotion-quadrant q1">Excited</span>
-                      <span class="emotion-quadrant q2">Stressed</span>
-                      <span class="emotion-quadrant q3">Sad / Depressed</span>
-                      <span class="emotion-quadrant q4">Content / Relaxed</span>
+                      <span class="emotion-axis-label axis-top">Activation</span>
+                      <span class="emotion-axis-label axis-bottom">Relaxation</span>
+                      <span class="emotion-axis-label axis-left">Negative</span>
+                      <span class="emotion-axis-label axis-right">Positive</span>
 
                       <div class="emotion-point" id="emotion-map-point" aria-hidden="true"></div>
-                      <div class="emotion-point-label" id="emotion-point-label" aria-live="polite">
-                        V 0% · A 0.0%
-                      </div>
+                      <div class="emotion-mode-layer" id="emotion-mode-layer" aria-live="polite"></div>
                     </div>
                   </div>
 
-                  <p class="emotion-interpretation" id="emotion-interpretation">
+                  <!-- <p class="emotion-interpretation" id="emotion-interpretation">
                     Move through the flow to generate your position.
-                  </p>
+                  </p> -->
                 </div>
               </section>
 
