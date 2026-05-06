@@ -243,7 +243,7 @@ function updateStep(dom, state, targetStep, options = {}) {
     saveDemographics(dom, state);
   }
   if (targetStep === 2) {
-    stopMusicPlayback();
+    void stopMusicPlayback({ fadeOutMs: 2000 });
   }
 
   if (targetStep === 4) {
