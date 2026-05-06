@@ -1,0 +1,18 @@
+# Publish static demo + Netlify Functions.
+# Face assess uploads use multipart bodies; Netlify Functions have payload and wall-clock limits—see scripts/README.proxy.md.
+
+[build]
+  command = "npm run build"
+  publish = "site"
+
+[functions]
+  directory = "netlify/functions"
+  # zisi avoids esbuild inlining/replacing process.env.* during the functions bundle step;
+  # runtime env from the Netlify UI is read from process.env inside the handler.
+  node_bundler = "zisi"
+
+[[redirects]]
+  from = "/api/face-assess/*"
+  to = "/.netlify/functions/face-assess-proxy"
+  status = 200
+  force = true
