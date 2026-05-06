@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node -e \"console.log('Static site from site/; Netlify packages netlify/functions.')\"",
+    "dev": "node scripts/maika-dev-proxy.mjs",
+    "start:proxy": "node scripts/maika-rppg-proxy.mjs"
+  }
+}

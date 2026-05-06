@@ -9,6 +9,7 @@
       ['/about/', '/about/'],
       ['/blog/', '/blog/'],
       ['/contact/', '/contact/'],
+      ['/demo/', '/demo/'],
     ]);
     const current = map.get(normalized) || null;
     document.querySelectorAll('[data-nav-link]').forEach((link) => {
