@@ -12,6 +12,13 @@ let musicData = [];
 let controlsBound = false;
 let selectBound = false;
 let selectionLocked = false;
+let activeFadeRaf = 0;
+
+function clearActiveFade() {
+  if (!activeFadeRaf) return;
+  globalThis.cancelAnimationFrame(activeFadeRaf);
+  activeFadeRaf = 0;
+}
 
 /** Cached #music-select in the wizard. */
 function getSelect() {
@@ -318,21 +325,81 @@ export async function fetchMusicData() {
   }
 }
 
-export function stopMusicPlayback() {
+export function stopMusicPlayback(options = {}) {
   const audio = getMainAudio();
   const fallback = document.getElementById("audio-player");
   const playBtn = document.getElementById("play-pause-btn");
-  if (audio) {
-    audio.pause();
-    audio.currentTime = 0;
+
+  const stopNow = () => {
+    clearActiveFade();
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    if (fallback) {
+      fallback.pause();
+      fallback.currentTime = 0;
+    }
+    if (playBtn) {
+      playBtn.textContent = "▶ Play";
+    }
+  };
+
+  const fadeOutMs = Math.max(0, Number(options.fadeOutMs) || 0);
+  const fadeTargets = [audio, fallback]
+    .filter(
+      (el) =>
+        el &&
+        !el.paused &&
+        Number.isFinite(el.volume) &&
+        el.volume > 0,
+    )
+    .map((el) => ({ el, startVolume: el.volume }));
+
+  if (fadeOutMs === 0 || fadeTargets.length === 0) {
+    stopNow();
+    return Promise.resolve();
   }
-  if (fallback) {
-    fallback.pause();
-    fallback.currentTime = 0;
-  }
-  if (playBtn) {
-    playBtn.textContent = "▶ Play";
-  }
+
+  clearActiveFade();
+  const startVolume = audio.volume;
+  const startAt = globalThis.performance.now();
+
+  return new Promise((resolve) => {
+    const restoreVolumes = () => {
+      for (const target of fadeTargets) {
+        target.el.volume = target.startVolume;
+      }
+    };
+
+    const tick = (now) => {
+      const allPaused = fadeTargets.every((target) => target.el.paused);
+      if (allPaused) {
+        stopNow();
+        restoreVolumes();
+        resolve();
+        return;
+      }
+
+      const elapsed = Math.max(0, now - startAt);
+      const progress = Math.min(1, elapsed / fadeOutMs);
+      // Ease-in curve keeps the first half gentler and avoids an abrupt-feeling drop.
+      const easedProgress = progress * progress;
+      for (const target of fadeTargets) {
+        target.el.volume = Math.max(0, target.startVolume * (1 - easedProgress));
+      }
+
+      if (progress >= 1) {
+        stopNow();
+        restoreVolumes();
+        resolve();
+        return;
+      }
+      activeFadeRaf = globalThis.requestAnimationFrame(tick);
+    };
+
+    activeFadeRaf = globalThis.requestAnimationFrame(tick);
+  });
 }
 
 /**
