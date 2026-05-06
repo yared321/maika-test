@@ -8,7 +8,7 @@ import { FaceScanCameraController } from "./face_scan_camera_controller.js";
 import { FaceScanRecordingController } from "./face_scan_recording_controller.js";
 import { FaceScanUpload } from "../service/service.js";
 
-var RECORD_TARGET_MS = 30000;
+var RECORD_TARGET_MS = 15000;
 var ALIGN_INTERVAL_MS = 120;
 var STABLE_HIT_COUNT = 4;
 var FACE_MIN_FRAC = 0.12;
