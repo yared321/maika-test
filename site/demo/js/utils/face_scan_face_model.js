@@ -10,7 +10,7 @@ const config = {
   kind: "tiny",
   weightsCdn: DEFAULT_CDN,
   weightsLocal: DEFAULT_LOCAL,
-  tiny: { inputSize: 512, scoreThreshold: 0.35 },
+  tiny: { inputSize: 224, scoreThreshold: 0.35 },
   ssd: { minConfidence: 0.35 },
 };
 
