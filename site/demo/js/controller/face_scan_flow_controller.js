@@ -564,6 +564,7 @@ function createCameraController(recording) {
       faceMinFrac: FACE_MIN_FRAC,
       faceMaxFrac: FACE_MAX_FRAC,
       recordTargetMs: RECORD_TARGET_MS,
+      faceMinMeanLuminance: H.DEFAULT_FACE_MIN_MEAN_LUMINANCE,
     },
     bridges: {
       hideError: hideError,
