@@ -248,9 +248,6 @@ function updateStep(dom, state, targetStep, options = {}) {
   if (targetStep === 1) {
     saveDemographics(dom, state);
   }
-  if (targetStep === 2) {
-    void stopMusicPlayback({ fadeOutMs: 2000 });
-  }
 
   if (targetStep === 4) {
     options.controllers?.score?.render?.();

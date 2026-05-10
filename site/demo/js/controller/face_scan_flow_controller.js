@@ -7,6 +7,10 @@ import { FaceScanFaceModel } from "../utils/face_scan_face_model.js";
 import { FaceScanCameraController } from "./face_scan_camera_controller.js";
 import { FaceScanRecordingController } from "./face_scan_recording_controller.js";
 import { FaceScanUpload } from "../service/service.js";
+import { stopMusicPlayback } from "./music_stream_controller.js";
+
+/** Fade when user starts face scan (after consent); keeps music through music step + scan intro until then. */
+var MUSIC_FADE_MS_ON_SCAN_START = 5000;
 
 var RECORD_TARGET_MS = 15000;
 var ALIGN_INTERVAL_MS = 120;
@@ -325,6 +329,7 @@ function startCameraFromIntro(camera) {
     syncStartButtonAvailability();
     return;
   }
+  void stopMusicPlayback({ fadeOutMs: MUSIC_FADE_MS_ON_SCAN_START });
   cameraDOM.btnStart.disabled = true;
   cameraDOM.panelInstructions.classList.add("hidden");
   cameraDOM.panelScan.classList.remove("hidden");
