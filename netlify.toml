@@ -16,3 +16,9 @@
   to = "/.netlify/functions/face-assess-proxy"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/demo-verify"
+  to = "/.netlify/functions/demo-verify"
+  status = 200
+  force = true

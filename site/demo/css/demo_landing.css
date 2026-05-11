@@ -203,6 +203,10 @@
   display: none;
 }
 
+.demo-access-card .cf-turnstile {
+  margin-top: 0.15rem;
+}
+
 .demo-access-card__btn {
   width: fit-content;
   min-width: 140px;
