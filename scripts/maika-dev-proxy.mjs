@@ -9,6 +9,7 @@
  * Serves:  ./site  (override with SITE_ROOT).
  *
  * Env: PORT (default 3000), SITE_ROOT, MAIKA_RPPG_UPSTREAM (e.g. https://xxx.run.app, no trailing slash).
+ * Demo verify env: DEMO_ACCESS_CODES, TURNSTILE_SECRET_KEY, DEMO_BYPASS_VERIFY (optional local bypass).
  */
 import http from 'node:http';
 import https from 'node:https';
@@ -29,6 +30,7 @@ const UPSTREAM = (process.env.MAIKA_RPPG_UPSTREAM || 'https://maika-rppg-web-sta
 const PUBLIC_KEY = String(process.env.MAIKA_PUBLIC_KEY || '').trim();
 const CAPTCHA_TOKEN = String(process.env.MAIKA_CAPTCHA_TOKEN || '').trim();
 const PROXY_PREFIX = '/api/face-assess';
+const DEMO_VERIFY_PATH = '/api/demo-verify';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -136,6 +138,95 @@ function proxyAssess(req, res) {
   req.pipe(preq);
 }
 
+function parseAccessCodes(raw) {
+  return String(raw || '')
+    .split(',')
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+async function verifyTurnstile(secret, token, remoteip) {
+  const body = new URLSearchParams();
+  body.set('secret', secret);
+  body.set('response', token || '');
+  if (remoteip) body.set('remoteip', remoteip);
+  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  return res.json();
+}
+
+function writeJson(res, req, status, payload) {
+  res.writeHead(status, {
+    ...corsHeaders(req),
+    'Content-Type': 'application/json; charset=utf-8',
+  });
+  res.end(JSON.stringify(payload));
+}
+
+async function handleDemoVerify(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, corsHeaders(req));
+    res.end();
+    return;
+  }
+  if (req.method !== 'POST') {
+    writeJson(res, req, 405, { ok: false, error: 'Method not allowed' });
+    return;
+  }
+
+  let raw = '';
+  for await (const chunk of req) raw += chunk;
+  let body = {};
+  try {
+    body = JSON.parse(raw || '{}');
+  } catch {
+    writeJson(res, req, 400, { ok: false, error: 'Invalid JSON' });
+    return;
+  }
+
+  const accessCode = String(body.accessCode || '').trim();
+  const token = String(body.turnstileToken || '').trim();
+  const bypass = String(process.env.DEMO_BYPASS_VERIFY || '').toLowerCase() === 'true';
+  const secret = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
+  const allowed = parseAccessCodes(process.env.DEMO_ACCESS_CODES || '');
+
+  if (!allowed.length) {
+    writeJson(res, req, 503, { ok: false, error: 'Demo access is not configured (DEMO_ACCESS_CODES).' });
+    return;
+  }
+  if (!accessCode) {
+    writeJson(res, req, 400, { ok: false, error: 'Missing access code.' });
+    return;
+  }
+  if (!allowed.includes(accessCode.toUpperCase())) {
+    writeJson(res, req, 403, { ok: false, error: 'Invalid access code.' });
+    return;
+  }
+  if (bypass) {
+    writeJson(res, req, 200, { ok: true });
+    return;
+  }
+  if (!secret) {
+    writeJson(res, req, 503, { ok: false, error: 'Turnstile is not configured (TURNSTILE_SECRET_KEY).' });
+    return;
+  }
+  if (!token) {
+    writeJson(res, req, 403, { ok: false, error: 'Complete the security check and try again.' });
+    return;
+  }
+
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0]?.trim();
+  const outcome = await verifyTurnstile(secret, token, ip);
+  if (!outcome.success) {
+    writeJson(res, req, 403, { ok: false, error: 'Security verification failed. Refresh and try again.' });
+    return;
+  }
+  writeJson(res, req, 200, { ok: true });
+}
+
 function safeResolveFile(urlPathname) {
   let rel = urlPathname;
   if (rel === '/' || rel === '') rel = 'index.html';
@@ -192,6 +283,14 @@ function serveStatic(req, res) {
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, `http://127.0.0.1:${PORT}`);
+  if (u.pathname === DEMO_VERIFY_PATH) {
+    handleDemoVerify(req, res).catch((err) => {
+      if (!res.headersSent) {
+        writeJson(res, req, 500, { ok: false, error: String(err?.message || err) });
+      }
+    });
+    return;
+  }
   if (u.pathname === PROXY_PREFIX || u.pathname.startsWith(PROXY_PREFIX + '/')) {
     proxyAssess(req, res);
     return;
@@ -215,6 +314,7 @@ server.on('error', (err) => {
 server.listen(PORT, () => {
   console.error(
     `Maika dev: http://localhost:${PORT}/  (site: ${SITE_ROOT})\n` +
-      `  Assess proxy: http://localhost:${PORT}${PROXY_PREFIX}/… → ${UPSTREAM}/…`,
+      `  Assess proxy: http://localhost:${PORT}${PROXY_PREFIX}/… → ${UPSTREAM}/…\n` +
+      `  Demo verify: POST http://localhost:${PORT}${DEMO_VERIFY_PATH}`,
   );
 });

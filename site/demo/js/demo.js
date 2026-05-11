@@ -6,8 +6,8 @@ import {
 } from "./controller/music_stream_controller.js";
 import { ValenceSliderController } from "./controller/slider_controller.js";
 import { ScoreVisualizationController } from "./controller/emotion_score_controller.js";
-import {handleDemoAccess, unlockDemoFlow, setDemoAccessError} from "./controller/demo_access_controller.js"
-import {saveDemographics, validateAgeField} from "./controller/demographic_form_controller.js"
+import { handleDemoAccess, unlockDemoFlow, setDemoAccessError } from "./controller/demo_access_controller.js";
+import { saveDemographics, validateAgeField } from "./controller/demographic_form_controller.js";
 import {
   applyRecordedPreview,
   clearRecordedPreview,
@@ -216,12 +216,12 @@ function bindEvents(dom, state, controllers) {
   });
 
   dom.demoAccessButton?.addEventListener("click", () => {
-    handleDemoAccess(dom, state, updateStep);
+    void handleDemoAccess(dom, state, updateStep);
   });
   dom.demoAccessInput?.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") {
       ev.preventDefault();
-      handleDemoAccess(dom, state, updateStep);
+      void handleDemoAccess(dom, state, updateStep);
     }
   });
 
