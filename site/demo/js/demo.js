@@ -239,11 +239,14 @@ function bindEvents(dom, state, controllers) {
  * Also saves demographics or stops playback as needed for the new step.
  */
 function updateStep(dom, state, targetStep, options = {}) {
+  // Leaving the music step → stop playback and reset player (Back to demographics, etc.).
+  if (state.currentStep === 1 && targetStep === 0) {
+    stopMusicPlayback();
+    resetMusicDemoSession();
+  }
+
   if (targetStep === 1) {
     saveDemographics(dom, state);
-  }
-  if (targetStep === 2) {
-    void stopMusicPlayback({ fadeOutMs: 2000 });
   }
 
   if (targetStep === 4) {

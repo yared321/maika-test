@@ -182,6 +182,79 @@ export function getFaceFramingGuidance(box, video, faceMinFrac, faceMaxFrac) {
   return { direction: "up", message: "Move slightly up." };
 }
 
+/** Minimum mean luma (0–255) over the face ROI before align/recording may proceed. Tune per backend sensitivity. */
+export const DEFAULT_FACE_MIN_MEAN_LUMINANCE = 46;
+
+var _luminanceCanvas = null;
+
+/**
+ * Mean perceptual luminance (BT.601) over the face bounding region in video pixels.
+ * Downsamples for speed; returns null if sampling fails.
+ * @param {HTMLVideoElement} video
+ * @param {{ x: number, y: number, width: number, height: number }} box
+ * @returns {number | null}
+ */
+export function estimateFaceRegionMeanLuminance(video, box) {
+  if (!video || !box || !video.videoWidth || video.readyState < 2) return null;
+  var vw = video.videoWidth;
+  var vh = video.videoHeight;
+  var pad = 0.1;
+  var bw = box.width * (1 + 2 * pad);
+  var bh = box.height * (1 + 2 * pad);
+  var bx = box.x + box.width / 2 - bw / 2;
+  var by = box.y + box.height / 2 - bh / 2;
+  var sx = Math.max(0, Math.floor(bx));
+  var sy = Math.max(0, Math.floor(by));
+  var sw = Math.min(vw - sx, Math.ceil(bw));
+  var sh = Math.min(vh - sy, Math.ceil(bh));
+  if (sw < 4 || sh < 4) return null;
+
+  if (!_luminanceCanvas) _luminanceCanvas = document.createElement("canvas");
+  var canvas = _luminanceCanvas;
+  var maxSide = 96;
+  var tw = Math.min(maxSide, sw);
+  var th = Math.min(maxSide, sh);
+  canvas.width = tw;
+  canvas.height = th;
+  var ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  try {
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, tw, th);
+  } catch (_e) {
+    return null;
+  }
+  var imageData = ctx.getImageData(0, 0, tw, th);
+  var data = imageData.data;
+  var sum = 0;
+  var n = 0;
+  for (var i = 0; i < data.length; i += 4) {
+    var r = data[i];
+    var g = data[i + 1];
+    var b = data[i + 2];
+    sum += 0.299 * r + 0.587 * g + 0.114 * b;
+    n++;
+  }
+  return n > 0 ? sum / n : null;
+}
+
+/**
+ * @param {HTMLVideoElement} video
+ * @param {{ x: number, y: number, width: number, height: number }} box
+ * @param {number} [minMean]
+ * @returns {boolean}
+ */
+export function isFaceRegionBrightEnough(video, box, minMean) {
+  var min =
+    typeof minMean === "number" && Number.isFinite(minMean)
+      ? minMean
+      : DEFAULT_FACE_MIN_MEAN_LUMINANCE;
+  var L = estimateFaceRegionMeanLuminance(video, box);
+  if (L == null || !Number.isFinite(L)) return false;
+  console.log('L', L);
+  console.log('min', min);
+  return L >= min;
+}
+
 /** Maps detection box → CSS clip-path ellipse on the mirrored preview overlay. */
 export function computeFaceScanEllipse(box, video) {
   if (!box || !video.videoWidth || video.readyState < 2) return null;
@@ -273,4 +346,7 @@ export const FaceScanHelpers = {
   safeRecorderResume,
   setPlacementUi,
   createRecorder,
+  DEFAULT_FACE_MIN_MEAN_LUMINANCE,
+  estimateFaceRegionMeanLuminance,
+  isFaceRegionBrightEnough,
 };

@@ -7,6 +7,10 @@ import { FaceScanFaceModel } from "../utils/face_scan_face_model.js";
 import { FaceScanCameraController } from "./face_scan_camera_controller.js";
 import { FaceScanRecordingController } from "./face_scan_recording_controller.js";
 import { FaceScanUpload } from "../service/service.js";
+import { stopMusicPlayback } from "./music_stream_controller.js";
+
+/** Fade when user starts face scan (after consent); keeps music through music step + scan intro until then. */
+var MUSIC_FADE_MS_ON_SCAN_START = 5000;
 
 var RECORD_TARGET_MS = 15000;
 var ALIGN_INTERVAL_MS = 120;
@@ -232,6 +236,19 @@ function warmupDetector() {
 }
 
 /**
+ * Phones / touch layouts use the lighter TinyFaceDetector; desktop uses SSD when available.
+ * @returns {boolean}
+ */
+function preferTinyFaceDetector() {
+  var coarse =
+    typeof globalThis.matchMedia === "function" &&
+    globalThis.matchMedia("(pointer: coarse)").matches;
+  var narrow =
+    typeof globalThis.innerWidth === "number" && globalThis.innerWidth < 768;
+  return coarse || narrow;
+}
+
+/**
  * Display a visible error message inside the scan flow UI.
  * @param {string} text
  */
@@ -259,11 +276,11 @@ function bootstrapModels() {
   syncStartButtonAvailability();
 
   FaceScanFaceModel.setConfig({
-    kind: "ssd",
+    kind: preferTinyFaceDetector() ? "tiny" : "ssd",
     weightsCdn: MODEL_URL_CDN,
     weightsLocal: MODEL_URL_LOCAL,
     ssd: { minConfidence: 0.35 },
-    tiny: { inputSize: 512, scoreThreshold: 0.35 },
+    tiny: { inputSize: 224, scoreThreshold: 0.35 },
   });
 
   var kind = String(FaceScanFaceModel.getConfig().kind || "tiny").toLowerCase();
@@ -325,6 +342,7 @@ function startCameraFromIntro(camera) {
     syncStartButtonAvailability();
     return;
   }
+  void stopMusicPlayback({ fadeOutMs: MUSIC_FADE_MS_ON_SCAN_START });
   cameraDOM.btnStart.disabled = true;
   cameraDOM.panelInstructions.classList.add("hidden");
   cameraDOM.panelScan.classList.remove("hidden");
@@ -564,6 +582,7 @@ function createCameraController(recording) {
       faceMinFrac: FACE_MIN_FRAC,
       faceMaxFrac: FACE_MAX_FRAC,
       recordTargetMs: RECORD_TARGET_MS,
+      faceMinMeanLuminance: H.DEFAULT_FACE_MIN_MEAN_LUMINANCE,
     },
     bridges: {
       hideError: hideError,
