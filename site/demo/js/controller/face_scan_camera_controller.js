@@ -4,11 +4,22 @@
 import * as H from "../utils/face_scan_helpers.js";
 
 /**
+ * @param {{ faceMinMeanLuminance?: number }} cfg
+ * @returns {number}
+ */
+function resolveFaceMinMeanLuminance(cfg) {
+  return typeof cfg.faceMinMeanLuminance === "number" &&
+    Number.isFinite(cfg.faceMinMeanLuminance)
+    ? cfg.faceMinMeanLuminance
+    : H.DEFAULT_FACE_MIN_MEAN_LUMINANCE;
+}
+
+/**
  * Build normalized runtime state used by all camera controller helpers.
  * @param {{
  *   ctx: Record<string, unknown>,
  *   elements: Record<string, HTMLElement | null>,
- *   config: { alignIntervalMs: number, stableHitCount: number, faceMinFrac: number, faceMaxFrac: number, recordTargetMs: number },
+ *   config: { alignIntervalMs: number, stableHitCount: number, faceMinFrac: number, faceMaxFrac: number, recordTargetMs: number, faceMinMeanLuminance?: number },
  *   bridges: { hideError?: function(): void, onCountdownDone?: function(): Promise<unknown> | unknown }
  * }} spec
  * @returns {{ ctx: Record<string, unknown>, el: Record<string, HTMLElement | null>, cfg: Record<string, unknown>, bridges: Record<string, unknown> }}
@@ -312,6 +323,20 @@ function tickCameraRecordFraming(state) {
         return;
       }
 
+      var minLRec = resolveFaceMinMeanLuminance(state.cfg);
+      if (!H.isFaceRegionBrightEnough(state.el.preview, box, minLRec)) {
+        state.ctx.re 
+        H.safeRecorderPause(rec);
+        state.ctx.recordBudgetLastSample = null;
+        H.setPlacementUi(
+          state.el.placementStatus,
+          "bad",
+          "Paused — too dark. Move to brighter light for a clear scan.",
+        );
+        syncFaceScanFx(state, box, false, null);
+        return;
+      }
+
       state.ctx.recordingFaceInGuide = true;
       state.ctx.recordingFramingReady = true;
       H.safeRecorderResume(rec);
@@ -380,6 +405,17 @@ function tickAlignment(state) {
       );
 
       if (aligned) {
+        var minLAlign = resolveFaceMinMeanLuminance(state.cfg);
+        if (!H.isFaceRegionBrightEnough(state.el.preview, box, minLAlign)) {
+          state.ctx.placementStableHits = 0;
+          H.setPlacementUi(
+            state.el.placementStatus,
+            "bad",
+            "Too dark — add light on your face so the scan can succeed.",
+          );
+          syncFaceScanFx(state, box, false, null);
+          return;
+        }
         state.ctx.placementStableHits++;
         var msg =
           state.ctx.placementStableHits >= state.cfg.stableHitCount - 1
@@ -578,7 +614,7 @@ function startRecordFramingLoop(state) {
  * @param {{
  *   ctx: Record<string, unknown>,
  *   elements: Record<string, HTMLElement | null>,
- *   config: { alignIntervalMs: number, stableHitCount: number, faceMinFrac: number, faceMaxFrac: number, recordTargetMs: number },
+ *   config: { alignIntervalMs: number, stableHitCount: number, faceMinFrac: number, faceMaxFrac: number, recordTargetMs: number, faceMinMeanLuminance?: number },
  *   bridges: { hideError?: function(): void, onCountdownDone?: function(): Promise<unknown> | unknown, onCameraReady?: function(): void }
  * }} spec
  */
