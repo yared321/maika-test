@@ -236,6 +236,19 @@ function warmupDetector() {
 }
 
 /**
+ * Phones / touch layouts use the lighter TinyFaceDetector; desktop uses SSD when available.
+ * @returns {boolean}
+ */
+function preferTinyFaceDetector() {
+  var coarse =
+    typeof globalThis.matchMedia === "function" &&
+    globalThis.matchMedia("(pointer: coarse)").matches;
+  var narrow =
+    typeof globalThis.innerWidth === "number" && globalThis.innerWidth < 768;
+  return coarse || narrow;
+}
+
+/**
  * Display a visible error message inside the scan flow UI.
  * @param {string} text
  */
@@ -263,11 +276,11 @@ function bootstrapModels() {
   syncStartButtonAvailability();
 
   FaceScanFaceModel.setConfig({
-    kind: "ssd",
+    kind: preferTinyFaceDetector() ? "tiny" : "ssd",
     weightsCdn: MODEL_URL_CDN,
     weightsLocal: MODEL_URL_LOCAL,
     ssd: { minConfidence: 0.35 },
-    tiny: { inputSize: 512, scoreThreshold: 0.35 },
+    tiny: { inputSize: 224, scoreThreshold: 0.35 },
   });
 
   var kind = String(FaceScanFaceModel.getConfig().kind || "tiny").toLowerCase();
