@@ -22,3 +22,15 @@
   to = "/.netlify/functions/demo-verify"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/demo-code-create"
+  to = "/.netlify/functions/demo-code-create"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/demo-code-revoke"
+  to = "/.netlify/functions/demo-code-revoke"
+  status = 200
+  force = true

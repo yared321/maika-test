@@ -3,10 +3,16 @@
  *
  * Env (Netlify UI):
  *   - DEMO_ACCESS_CODES     Comma-separated allowlist (e.g. HELSANA,MAIKA26)
+ *   - UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN  Optional dynamic code store.
+ *   - DYNAMIC_ACCESS_CODE_MAX_USES / DYNAMIC_ACCESS_CODE_TTL_SECONDS Optional defaults.
  *   - TURNSTILE_SECRET_KEY Secret from Cloudflare Turnstile
  *   - DEMO_BYPASS_VERIFY    Set to "true" only for local/dev; skips Turnstile check.
  *   - CORS_ALLOW_ORIGIN     Optional; default "*"
  */
+import {
+  consumeDynamicAccessCode,
+  isDynamicCodeStoreConfigured,
+} from "./_dynamic_access_codes.mjs";
 
 function readEnv(key, fallback = "") {
   const p =
@@ -100,12 +106,14 @@ export const handler = async (event) => {
   const codesRaw = readEnv("DEMO_ACCESS_CODES");
   const allowed = parseAccessCodes(codesRaw);
 
-  if (!allowed.length) {
+  const dynamicEnabled = isDynamicCodeStoreConfigured();
+  if (!allowed.length && !dynamicEnabled) {
     return jsonResponse(
       503,
       {
         ok: false,
-        error: "Demo access is not configured (DEMO_ACCESS_CODES).",
+        error:
+          "Demo access is not configured (set DEMO_ACCESS_CODES or Redis env for dynamic codes).",
       },
       corsAllow,
     );
@@ -128,7 +136,10 @@ export const handler = async (event) => {
   }
 
   const normalized = accessCode.toUpperCase();
-  if (!allowed.includes(normalized)) {
+  const isStaticCode = allowed.includes(normalized);
+  const isDynamicCandidate = !isStaticCode && dynamicEnabled;
+
+  if (!isStaticCode && !isDynamicCandidate) {
     return jsonResponse(403, { ok: false, error: "Invalid access code." }, corsAllow);
   }
 
@@ -167,5 +178,32 @@ export const handler = async (event) => {
     );
   }
 
-  return jsonResponse(200, { ok: true }, corsAllow);
+  if (isDynamicCandidate) {
+    const consumed = await consumeDynamicAccessCode(normalized);
+    if (!consumed.ok) {
+      if (consumed.reason === "store_error") {
+        return jsonResponse(
+          503,
+          { ok: false, error: "Access code service unavailable. Please try again." },
+          corsAllow,
+        );
+      }
+      const message =
+        consumed.reason === "exhausted"
+          ? "This access code has reached its usage limit."
+          : "Invalid or expired access code.";
+      return jsonResponse(403, { ok: false, error: message }, corsAllow);
+    }
+    return jsonResponse(
+      200,
+      {
+        ok: true,
+        codeType: "dynamic",
+        usesRemaining: consumed.remainingUses,
+      },
+      corsAllow,
+    );
+  }
+
+  return jsonResponse(200, { ok: true, codeType: "static" }, corsAllow);
 };
