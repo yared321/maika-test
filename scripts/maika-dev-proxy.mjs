@@ -29,6 +29,7 @@ const UPSTREAM = (process.env.MAIKA_RPPG_UPSTREAM || 'https://maika-rppg-web-sta
 );
 const PUBLIC_KEY = String(process.env.MAIKA_PUBLIC_KEY || '').trim();
 const CAPTCHA_TOKEN = String(process.env.MAIKA_CAPTCHA_TOKEN || '').trim();
+const TURNSTILE_SITE_KEY = String(process.env.TURNSTILE_SITE_KEY || '').trim();
 const PROXY_PREFIX = '/api/face-assess';
 const DEMO_VERIFY_PATH = '/api/demo-verify';
 
@@ -275,9 +276,17 @@ function serveStatic(req, res) {
       res.end('Read error');
       return;
     }
+    var out = buf;
+    if (ext === '.html') {
+      const html = out.toString('utf8');
+      out = Buffer.from(
+        html.replaceAll('__TURNSTILE_SITE_KEY__', TURNSTILE_SITE_KEY),
+        'utf8',
+      );
+    }
     res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
     if (req.method === 'HEAD') res.end();
-    else res.end(buf);
+    else res.end(out);
   });
 }
 

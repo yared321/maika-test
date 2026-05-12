@@ -4,7 +4,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "node -e \"console.log('Static site from site/; Netlify packages netlify/functions.')\"",
+    "build": "node scripts/inject-public-env.mjs && node -e \"console.log('Static site from site/; Netlify packages netlify/functions.')\"",
     "dev": "node scripts/maika-dev-proxy.mjs",
     "start:proxy": "node scripts/maika-rppg-proxy.mjs"
   }
