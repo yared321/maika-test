@@ -292,9 +292,13 @@ function tickCameraRecordFraming(state) {
     return;
   }
 
+  if (state.ctx.detectionInFlight) return;
+  state.ctx.detectionInFlight = true;
+
   globalThis.faceapi
     .detectSingleFace(state.el.preview, opts)
     .then(function (detection) {
+      state.ctx.detectionInFlight = false;
       if (state.ctx.phase !== "record") return;
       var rec = state.ctx.recorder;
       if (!rec) return;
@@ -370,6 +374,7 @@ function tickCameraRecordFraming(state) {
       }
     })
     .catch(function () {
+      state.ctx.detectionInFlight = false;
       syncFaceScanFx(state, null);
     });
 }
@@ -521,6 +526,7 @@ function cancelCountdown(state) {
 function stopStream(state) {
   stopRecordFramingLoop(state);
   stopAlignLoop(state);
+  state.ctx.detectionInFlight = false;
   if (state.ctx.stream) {
     state.ctx.stream.getTracks().forEach(function (t) {
       t.stop();

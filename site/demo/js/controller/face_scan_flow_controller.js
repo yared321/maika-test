@@ -36,6 +36,7 @@ var context = {
   recordBudgetLastSample: null,
   recordingFaceInGuide: false,
   recordingFramingReady: false,
+  detectionInFlight: false,
 };
 
 var faceModelsReady = false;
