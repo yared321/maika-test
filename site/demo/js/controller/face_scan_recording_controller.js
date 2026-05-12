@@ -256,7 +256,7 @@ function beginRecordingState(state) {
       H.setPlacementUi(
         state.el.placementStatus,
         "wait",
-        "Recording — full camera view.",
+        "Recording — full view.",
       );
     }
 

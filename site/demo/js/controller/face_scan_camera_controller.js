@@ -231,7 +231,7 @@ function syncFaceScanFx(state, optBox, alignOk, guideDirection) {
  */
 function getGuideOrCenter(state, box) {
   if (!box) {
-    return { direction: "center", message: "Move your face to the center." };
+    return { direction: "center", message: "Move to the center." };
   }
   return (
     H.getFaceFramingGuidance(
@@ -239,7 +239,7 @@ function getGuideOrCenter(state, box) {
       state.el.preview,
       state.cfg.faceMinFrac,
       state.cfg.faceMaxFrac,
-    ) || { direction: "center", message: "Move your face to the center." }
+    ) || { direction: "center", message: "Move to the center." }
   );
 }
 
@@ -315,9 +315,9 @@ function tickCameraRecordFraming(state) {
           box
             ? resolveGuideMessage(
                 guide,
-                "Paused — move your face to the center.",
+                "Paused — move to the center.",
               )
-            : "Paused — we need to see your face in the center.",
+            : "Paused — center your face in the frame.",
         );
         syncFaceScanFx(state, box, false, guide && guide.direction);
         return;
@@ -325,13 +325,13 @@ function tickCameraRecordFraming(state) {
 
       var minLRec = resolveFaceMinMeanLuminance(state.cfg);
       if (!H.isFaceRegionBrightEnough(state.el.preview, box, minLRec)) {
-        state.ctx.re 
+        state.ctx.recordingFaceInGuide = false;
         H.safeRecorderPause(rec);
         state.ctx.recordBudgetLastSample = null;
         H.setPlacementUi(
           state.el.placementStatus,
           "bad",
-          "Paused — too dark. Move to brighter light for a clear scan.",
+          "Paused — too dark. Add more light.",
         );
         syncFaceScanFx(state, box, false, null);
         return;
@@ -411,7 +411,7 @@ function tickAlignment(state) {
           H.setPlacementUi(
             state.el.placementStatus,
             "bad",
-            "Too dark — add light on your face so the scan can succeed.",
+            "Too dark — add light on your face.",
           );
           syncFaceScanFx(state, box, false, null);
           return;
@@ -438,8 +438,8 @@ function tickAlignment(state) {
           state.el.placementStatus,
           "bad",
           detection && detection.box
-            ? resolveGuideMessage(guideAlign, "Move your face to the center.")
-            : "Look at the camera so we see your face.",
+            ? resolveGuideMessage(guideAlign, "Move to the center.")
+            : "Center your face in the frame.",
         );
         syncFaceScanFx(state, box, false, guideAlign && guideAlign.direction);
         return;

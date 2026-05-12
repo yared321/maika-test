@@ -378,23 +378,39 @@
     bottom: 10px;
     transform: translateX(-50%);
     margin: 0;
-    padding: 0.45rem 0.85rem;
+    padding: 0.5rem 0.9rem;
     border-radius: 999px;
     background: rgba(10, 10, 16, 0.74);
     border: 1px solid rgba(255, 255, 255, 0.16);
     font-size: 0.88rem;
     font-weight: 500;
     text-align: center;
+    box-sizing: border-box;
     max-width: calc(100% - 28px);
-    width: max-content;
+    width: fit-content;
+    min-width: 0;
     z-index: 18;
     opacity: 1;
     pointer-events: none;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.28;
     box-shadow:
       0 10px 22px rgba(4, 6, 14, 0.45),
       0 0 12px rgba(115, 170, 255, 0.14);
     transition: color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+  }
+
+  /* Wide pill + slightly smaller type so status stays ~2 lines inside the frame. */
+  @media (max-width: 540px) {
+    .placement-status {
+      width: calc(100% - 24px);
+      max-width: calc(100% - 24px);
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 0.42rem 0.75rem;
+      line-height: 1.22;
+    }
   }
   
   .placement-status.state-wait {
