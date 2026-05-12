@@ -1,6 +1,7 @@
 import {
   fetchMusicData,
   MUSIC_ENDED_EVENT,
+  interruptMusicFadeOut,
   resetMusicDemoSession,
   stopMusicPlayback,
 } from "./controller/music_stream_controller.js";
@@ -22,7 +23,7 @@ import {
   resetFaceScanFlowForLanding,
 } from "./controller/face_scan_flow_controller.js";
 
-  
+var MUSIC_FADE_MS_ON_BACK_TO_DEMOGRAPHIC = 3000; // Fade duration when wizard Back / Done returns user and music should ease out (ms).
 const VALENCE_X_AXIS_DEFAULT = 0;
 
 // Preload music data on page load to improve perceived performance later.
@@ -241,9 +242,18 @@ function bindEvents(dom, state, controllers) {
  * Also saves demographics or stops playback as needed for the new step.
  */
 function updateStep(dom, state, targetStep, options = {}) {
-  // Leaving the music step → stop playback and reset player (Back to demographics, etc.).
+  // Leaving the music step: fade volume, then clear player / unlock picker (once, after fade).
   if (state.currentStep === 1 && targetStep === 0) {
-    stopMusicPlayback();
+    void stopMusicPlayback({
+      fadeOutMs: MUSIC_FADE_MS_ON_BACK_TO_DEMOGRAPHIC,
+    }).then(() => {
+      resetMusicDemoSession();
+    });
+  }
+
+  // Demographics → music: cancel stray fade-from-back and reset player so picker works.
+  if (state.currentStep === 0 && targetStep === 1) {
+    interruptMusicFadeOut();
     resetMusicDemoSession();
   }
 
@@ -351,8 +361,11 @@ async function handleNextClick(dom, state, controllers) {
  * Stops playback, clears upload state, and resets the access form.
  */
 function returnToLandingPage(dom, state, controllers) {
-  stopMusicPlayback();
-  resetMusicDemoSession();
+  void stopMusicPlayback({
+    fadeOutMs: MUSIC_FADE_MS_ON_BACK_TO_DEMOGRAPHIC,
+  }).then(() => {
+    resetMusicDemoSession();
+  });
   resetFaceScanFlowForLanding();
   resetUploadState(state);
   clearRecordedPreview(dom, state);

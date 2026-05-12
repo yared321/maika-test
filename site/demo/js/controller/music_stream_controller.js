@@ -13,11 +13,29 @@ let controlsBound = false;
 let selectBound = false;
 let selectionLocked = false;
 let activeFadeRaf = 0;
+/** Resolves the Promise from the current `stopMusicPlayback` fade (if any). */
+let activeFadeResolve = null;
 
 function clearActiveFade() {
   if (!activeFadeRaf) return;
   globalThis.cancelAnimationFrame(activeFadeRaf);
   activeFadeRaf = 0;
+}
+
+/** Cancel an in-progress volume fade and restore volumes from #volume-slider. */
+export function interruptMusicFadeOut() {
+  clearActiveFade();
+  if (typeof activeFadeResolve === "function") {
+    const finish = activeFadeResolve;
+    activeFadeResolve = null;
+    finish();
+  }
+  const audio = getMainAudio();
+  const fallback = document.getElementById("audio-player");
+  const volumeSlider = document.getElementById("volume-slider");
+  const v = volumeSlider ? Number(volumeSlider.value) || 0 : 1;
+  if (audio && Number.isFinite(audio.volume)) audio.volume = v;
+  if (fallback && Number.isFinite(fallback.volume)) fallback.volume = v;
 }
 
 /** Cached #music-select in the wizard. */
@@ -332,6 +350,7 @@ export function stopMusicPlayback(options = {}) {
 
   const stopNow = () => {
     clearActiveFade();
+    activeFadeResolve = null;
     if (audio) {
       audio.pause();
       audio.currentTime = 0;
@@ -362,7 +381,6 @@ export function stopMusicPlayback(options = {}) {
   }
 
   clearActiveFade();
-  const startVolume = audio.volume;
   const startAt = globalThis.performance.now();
 
   return new Promise((resolve) => {
@@ -372,12 +390,19 @@ export function stopMusicPlayback(options = {}) {
       }
     };
 
+    const finishFade = () => {
+      activeFadeResolve = null;
+      stopNow();
+      restoreVolumes();
+      resolve();
+    };
+
+    activeFadeResolve = finishFade;
+
     const tick = (now) => {
       const allPaused = fadeTargets.every((target) => target.el.paused);
       if (allPaused) {
-        stopNow();
-        restoreVolumes();
-        resolve();
+        finishFade();
         return;
       }
 
@@ -390,9 +415,7 @@ export function stopMusicPlayback(options = {}) {
       }
 
       if (progress >= 1) {
-        stopNow();
-        restoreVolumes();
-        resolve();
+        finishFade();
         return;
       }
       activeFadeRaf = globalThis.requestAnimationFrame(tick);

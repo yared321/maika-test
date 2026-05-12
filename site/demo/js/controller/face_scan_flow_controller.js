@@ -9,8 +9,8 @@ import { FaceScanRecordingController } from "./face_scan_recording_controller.js
 import { FaceScanUpload } from "../service/service.js";
 import { stopMusicPlayback } from "./music_stream_controller.js";
 
-/** Fade when user starts face scan (after consent); keeps music through music step + scan intro until then. */
-var MUSIC_FADE_MS_ON_SCAN_START = 5000;
+/** Fade out background music when face recording finishes (blob ready), not when starting the camera. */
+var MUSIC_FADE_MS_AFTER_RECORDING_COMPLETE = 5000;
 
 var RECORD_TARGET_MS = 15000;
 var ALIGN_INTERVAL_MS = 120;
@@ -343,7 +343,6 @@ function startCameraFromIntro(camera) {
     syncStartButtonAvailability();
     return;
   }
-  void stopMusicPlayback({ fadeOutMs: MUSIC_FADE_MS_ON_SCAN_START });
   cameraDOM.btnStart.disabled = true;
   cameraDOM.panelInstructions.classList.add("hidden");
   cameraDOM.panelScan.classList.remove("hidden");
@@ -538,6 +537,9 @@ function createRecordingController(getCamera, onResetUi) {
       },
       deferAssessUpload: true,
       onRecordingBlobReady: function (blob, recordedMime, baseTxt) {
+        void stopMusicPlayback({
+          fadeOutMs: MUSIC_FADE_MS_AFTER_RECORDING_COMPLETE,
+        });
         document.dispatchEvent(
           new CustomEvent("maika-demo:face-scan-blob-ready", {
             detail: {
