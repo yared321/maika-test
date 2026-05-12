@@ -21,10 +21,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createDynamicAccessCode,
+  createDynamicAccessCodesBatch,
   consumeDynamicAccessCode,
   isDynamicCodeStoreConfigured,
   revokeDynamicAccessCode,
 } from '../netlify/functions/_dynamic_access_codes.mjs';
+
+const MAX_CODES_PER_REQUEST = 100;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
@@ -315,8 +318,72 @@ async function handleDemoCodeCreate(req, res) {
   const parsed = await parseJsonBody(req, res);
   if (!parsed.ok) return;
   const body = parsed.body;
+
+  const rawNumber = body.number;
+  let batchCount = 1;
+  if (rawNumber != null && rawNumber !== '') {
+    const n = Number(rawNumber);
+    if (!Number.isFinite(n) || n <= 0 || Math.floor(n) !== n) {
+      writeJson(res, req, 400, { ok: false, error: 'number must be a positive integer.' });
+      return;
+    }
+    batchCount = Math.min(n, MAX_CODES_PER_REQUEST);
+    if (n > MAX_CODES_PER_REQUEST) {
+      writeJson(res, req, 400, {
+        ok: false,
+        error: `number must be at most ${MAX_CODES_PER_REQUEST}.`,
+      });
+      return;
+    }
+  }
+
+  const explicitCode = body.code != null ? String(body.code) : '';
+  if (batchCount > 1 && explicitCode.trim() !== '') {
+    writeJson(res, req, 400, {
+      ok: false,
+      error: 'Cannot set code when creating multiple (number > 1); omit code for batch.',
+    });
+    return;
+  }
+
+  if (batchCount > 1) {
+    const batch = await createDynamicAccessCodesBatch({
+      count: batchCount,
+      maxUses: body.maxUses,
+      ttlSeconds: body.ttlSeconds,
+    });
+    if (!batch.ok) {
+      if (batch.reason === 'invalid_code_format') {
+        writeJson(res, req, 400, {
+          ok: false,
+          error: 'Invalid code format. Use 4-64 chars: uppercase letters, numbers, hyphen.',
+        });
+        return;
+      }
+      writeJson(res, req, 503, {
+        ok: false,
+        error: 'Could not create access codes right now.',
+        reason: batch.reason,
+        atIndex: batch.atIndex,
+      });
+      return;
+    }
+    const first = batch.codes[0];
+    writeJson(res, req, 200, {
+      ok: true,
+      maxUses: first?.remainingUses,
+      ttlSeconds: first?.ttlSeconds,
+      createdAt: batch.createdAt,
+      codes: batch.codes.map((row) => ({
+        code: row.code,
+        remainingUses: row.remainingUses,
+      })),
+    });
+    return;
+  }
+
   const created = await createDynamicAccessCode({
-    code: body.code != null ? String(body.code) : '',
+    code: explicitCode,
     maxUses: body.maxUses,
     ttlSeconds: body.ttlSeconds,
   });
@@ -337,10 +404,10 @@ async function handleDemoCodeCreate(req, res) {
   }
   writeJson(res, req, 200, {
     ok: true,
-    code: created.code,
-    remainingUses: created.remainingUses,
+    maxUses: created.remainingUses,
     ttlSeconds: created.ttlSeconds,
     createdAt: created.createdAt,
+    codes: [{ code: created.code, remainingUses: created.remainingUses }],
   });
 }
 

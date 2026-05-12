@@ -4,7 +4,7 @@
  * Responsibilities:
  * - Normalize and validate code format.
  * - Read Redis/env configuration for dynamic invite codes.
- * - Create codes with max-uses + TTL defaults.
+ * - Create codes with max-uses + TTL defaults (single or batch via createDynamicAccessCodesBatch).
  * - Consume codes atomically (Lua) to prevent race-condition overuse.
  * - Revoke codes by deleting their Redis keys.
  *
@@ -182,6 +182,44 @@ export async function createDynamicAccessCode(options = {}) {
   }
 
   return { ok: false, reason: "create_failed" };
+}
+
+/**
+ * Create `count` distinct random codes with identical maxUses, ttlSeconds, and createdAt.
+ * Rolls back already-created keys in Redis if a later create fails.
+ */
+export async function createDynamicAccessCodesBatch(options = {}) {
+  if (!isDynamicCodeStoreConfigured()) {
+    return { ok: false, reason: "not_configured" };
+  }
+  const count = parsePositiveInt(options.count, 1);
+  if (count < 1) return { ok: false, reason: "invalid_count" };
+
+  const sharedCreatedAt = Date.now();
+  /** @type {{ code: string; remainingUses: number; ttlSeconds: number; createdAt: number }[]} */
+  const codes = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const created = await createDynamicAccessCode({
+      maxUses: options.maxUses,
+      ttlSeconds: options.ttlSeconds,
+      createdAt: sharedCreatedAt,
+    });
+    if (!created.ok) {
+      for (const row of codes) {
+        await revokeDynamicAccessCode(row.code);
+      }
+      return { ok: false, reason: created.reason, atIndex: i };
+    }
+    codes.push({
+      code: created.code,
+      remainingUses: created.remainingUses,
+      ttlSeconds: created.ttlSeconds,
+      createdAt: created.createdAt,
+    });
+  }
+
+  return { ok: true, codes, createdAt: sharedCreatedAt };
 }
 
 export async function revokeDynamicAccessCode(rawCode) {
