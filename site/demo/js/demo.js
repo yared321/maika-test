@@ -206,9 +206,11 @@ function bindEvents(dom, state, controllers) {
   });
 
   dom.backButton?.addEventListener("click", () => {
-    if (state.currentStep > 0) {
-      updateStep(dom, state, state.currentStep - 1);
+    if (state.currentStep === 0) {
+      returnToLandingPage(dom, state, controllers);
+      return;
     }
+    updateStep(dom, state, state.currentStep - 1);
   });
 
   dom.nextButton?.addEventListener("click", () => {
@@ -266,7 +268,6 @@ function updateStep(dom, state, targetStep, options = {}) {
     dom.nextButton.textContent = state.nextButtonLabels.get(targetStep) ?? "Next";
     dom.nextButton.hidden = false;
   }
-  if (dom.backButton) dom.backButton.disabled = state.currentStep === 0;
 
   syncFaceStepNextGate(dom, state);
 
