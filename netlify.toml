@@ -7,9 +7,10 @@
 
 [functions]
   directory = "netlify/functions"
-  # zisi avoids esbuild inlining/replacing process.env.* during the functions bundle step;
-  # runtime env from the Netlify UI is read from process.env inside the handler.
-  node_bundler = "zisi"
+  # esbuild bundles ESM handlers correctly. zisi emitted a CJS wrapper that `require()`d
+  # `.mjs` files (ERR_REQUIRE_ESM). Runtime env from the Netlify UI still comes from
+  # `process.env` inside the handler; we do not use esbuild `define` for secrets.
+  node_bundler = "esbuild"
 
 [[redirects]]
   from = "/api/face-assess/*"
