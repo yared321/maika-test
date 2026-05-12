@@ -397,8 +397,7 @@
                         >
                           <input type="checkbox" id="face-consent-checkbox" />
                           <span>
-                            I consent to using my face-scan video to calculate
-                            my arousal score.
+                            I give the consent to using my face-scan video to calculate my biometrics.
                           </span>
                         </label>
                         <p class="hint consent-note">
@@ -509,6 +508,7 @@
                           <video
                             id="preview"
                             playsinline
+                            webkit-playsinline
                             muted
                             autoplay
                           ></video>
@@ -668,8 +668,6 @@
                   <p class="valence-copy">
                     Move the slider to describe your feeling: left means more
                     unpleasant/negative, right means more pleasant/positive.
-                    This is only for visualization and is not sent to the
-                    backend.
                   </p>
                   <div class="valence-mood" aria-hidden="true">
                     <span class="valence-emoji" id="valence-emoji">😐</span>
@@ -839,7 +837,6 @@
                   class="btn btn-ghost"
                   type="button"
                   data-action="back"
-                  disabled
                 >
                   Back
                 </button>
