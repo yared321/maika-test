@@ -12,3 +12,6 @@ compare/
 # Python cache (if local scripts are added later)
 __pycache__/
 *.pyc
+
+# Node dependencies
+node_modules/
