@@ -1,4 +1,4 @@
-# Cloudflare Pages (optional dev / second host)
+# Cloudflare Pages (optional dev / second hosts)
 
 Netlify remains the source of truth via `netlify.toml`. This repo adds a **parallel** setup for **Cloudflare Pages**:
 
