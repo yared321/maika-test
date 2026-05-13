@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Wrangler Pages local secrets
+.dev.vars
 *.zip
 video-frames/
 video-frames-intro/

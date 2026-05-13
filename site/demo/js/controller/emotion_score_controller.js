@@ -147,8 +147,8 @@ const EMOTION_MODE_POINTS = [
   { label: "Neutral", valence: 0, arousal: 0 },
   { label: "Aroused", valence: 28, arousal: 74 },
   { label: "Excited", valence: 70, arousal: 56 },
-  { label: "Focused", valence: 42, arousal: 24 },
-  { label: "Happy", valence: 72, arousal: 8 },
+  { label: "Focused", valence: 42, arousal: 36 },
+  { label: "Happy", valence: 72, arousal: 20 },
   { label: "Pleased", valence: 72, arousal: -2 },
   { label: "Content", valence: 54, arousal: -34 },
   { label: "Relaxed", valence: 48, arousal: -64 },
@@ -190,11 +190,10 @@ function initEmotionModeLayer(controller) {
 function setActiveEmotionModes(controller, valence, arousal) {
   if (!controller.emotionModeEls) return;
   const nearest = getNearestEmotionModes(valence, arousal, 3);
-  const nearestSet = new Set(nearest);
 
   for (const [label, el] of controller.emotionModeEls.entries()) {
-    const isActive = nearestSet.has(label);
-    el.classList.toggle("is-active", isActive);
+    // Keep all mode tags visible for alignment tuning.
+    el.classList.add("is-active");
     el.classList.toggle("is-primary", nearest[0] === label);
   }
 }
