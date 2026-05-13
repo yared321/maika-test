@@ -6,6 +6,11 @@
   "scripts": {
     "build": "node -e \"console.log('Static site from site/; Netlify packages netlify/functions.')\"",
     "dev": "node scripts/maika-dev-proxy.mjs",
-    "start:proxy": "node scripts/maika-rppg-proxy.mjs"
+    "start:proxy": "node scripts/maika-rppg-proxy.mjs",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.90.1"
   }
 }
