@@ -1,3 +1,8 @@
+/**
+ * Small helpers for Pages Functions: read `env`, CORS allow-origin, headers,
+ * and JSON responses. Used by `functions/api/*`; no route logic here.
+ */
+
 /** @typedef {Record<string, string | undefined>} CfEnv */
 
 /**
