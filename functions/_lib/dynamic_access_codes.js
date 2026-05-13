@@ -1,29 +1,10 @@
 /**
- * Shared dynamic demo access-code store logic for Netlify Functions.
- *
- * Responsibilities:
- * - Normalize and validate code format.
- * - Read Redis/env configuration for dynamic invite codes.
- * - Create codes with max-uses + TTL defaults (single or batch via createDynamicAccessCodesBatch).
- * - Consume codes atomically (Lua) to prevent race-condition overuse.
- * - Revoke codes by deleting their Redis keys.
- *
- * Used by:
- * - demo-verify.mjs (validate + consume)
- * - demo-code-create.mjs (admin create)
- * - demo-code-revoke.mjs (admin revoke)
+ * Worker/Pages-compatible dynamic demo codes (Upstash Redis).
+ * Mirrors netlify/functions/_dynamic_access_codes.mjs behavior; APIs take `env` from Pages context.
  */
-import crypto from "node:crypto";
-import { Redis } from "@upstash/redis";
+import { Redis } from "@upstash/redis/cloudflare";
 
-function readEnv(key, fallback = "") {
-  const p =
-    typeof process !== "undefined" && process.env
-      ? process.env[key]
-      : undefined;
-  if (p != null && String(p).trim() !== "") return String(p).trim();
-  return fallback;
-}
+/** @typedef {Record<string, string | undefined>} CfEnv */
 
 function parsePositiveInt(raw, fallback) {
   const n = Number(raw);
@@ -31,6 +12,13 @@ function parsePositiveInt(raw, fallback) {
   return Math.floor(n);
 }
 
+function readBinding(env, key, fallback = "") {
+  const p = env[key];
+  if (p != null && String(p).trim() !== "") return String(p).trim();
+  return fallback;
+}
+
+/** @param {CfEnv} env */
 export function normalizeAccessCode(raw) {
   const code = String(raw || "").trim().toUpperCase();
   if (!code) return "";
@@ -38,43 +26,48 @@ export function normalizeAccessCode(raw) {
   return code;
 }
 
-export function isDynamicCodeStoreConfigured() {
+/** @param {CfEnv} env */
+export function isDynamicCodeStoreConfigured(env) {
   return !!(
-    readEnv("UPSTASH_REDIS_REST_URL") && readEnv("UPSTASH_REDIS_REST_TOKEN")
+    readBinding(env, "UPSTASH_REDIS_REST_URL") &&
+    readBinding(env, "UPSTASH_REDIS_REST_TOKEN")
   );
 }
 
-export function getDynamicCodeDefaults() {
+/** @param {CfEnv} env */
+export function getDynamicCodeDefaults(env) {
   return {
-    maxUses: parsePositiveInt(readEnv("DYNAMIC_ACCESS_CODE_MAX_USES", "3"), 3),
+    maxUses: parsePositiveInt(
+      readBinding(env, "DYNAMIC_ACCESS_CODE_MAX_USES", "3"),
+      3,
+    ),
     ttlSeconds: parsePositiveInt(
-      readEnv("DYNAMIC_ACCESS_CODE_TTL_SECONDS", "2592000"),
+      readBinding(env, "DYNAMIC_ACCESS_CODE_TTL_SECONDS", "2592000"),
       2592000,
     ),
-    prefix: readEnv("DYNAMIC_ACCESS_CODE_PREFIX", "demo:access:"),
+    prefix: readBinding(env, "DYNAMIC_ACCESS_CODE_PREFIX", "demo:access:"),
   };
 }
 
-let _redis = null;
-function redis() {
-  if (_redis) return _redis;
-  const url = readEnv("UPSTASH_REDIS_REST_URL");
-  const token = readEnv("UPSTASH_REDIS_REST_TOKEN");
-  if (!url || !token) throw new Error("Redis env is not configured");
-  _redis = new Redis({ url, token });
-  return _redis;
+/** @param {CfEnv} env */
+function redisClient(env) {
+  return Redis.fromEnv(env);
 }
 
-function remainingKey(code) {
-  return getDynamicCodeDefaults().prefix + code + ":remaining";
+/** @param {CfEnv} env */
+function remainingKey(env, code) {
+  return getDynamicCodeDefaults(env).prefix + code + ":remaining";
 }
-function metaKey(code) {
-  return getDynamicCodeDefaults().prefix + code + ":meta";
+
+/** @param {CfEnv} env */
+function metaKey(env, code) {
+  return getDynamicCodeDefaults(env).prefix + code + ":meta";
 }
 
 function generateCode(length) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.randomBytes(length);
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
   let out = "";
   for (let i = 0; i < length; i += 1) {
     out += alphabet[bytes[i] % alphabet.length];
@@ -113,18 +106,24 @@ end
 return {1, next}
 `;
 
-export async function consumeDynamicAccessCode(rawCode) {
+/** @param {CfEnv} env */
+export async function consumeDynamicAccessCode(env, rawCode) {
   const code = normalizeAccessCode(rawCode);
   if (!code) return { ok: false, reason: "invalid" };
-  if (!isDynamicCodeStoreConfigured()) return { ok: false, reason: "not_configured" };
+  if (!isDynamicCodeStoreConfigured(env)) {
+    return { ok: false, reason: "not_configured" };
+  }
   try {
-    const result = await redis().eval(CONSUME_CODE_LUA, [
-      remainingKey(code),
-      metaKey(code),
+    const r = redisClient(env);
+    const result = await r.eval(CONSUME_CODE_LUA, [
+      remainingKey(env, code),
+      metaKey(env, code),
     ]);
     const status = Number(Array.isArray(result) ? result[0] : result);
     const remaining = Number(Array.isArray(result) ? result[1] : -1);
-    if (status === 1) return { ok: true, code, remainingUses: Math.max(0, remaining) };
+    if (status === 1) {
+      return { ok: true, code, remainingUses: Math.max(0, remaining) };
+    }
     if (status === -1) return { ok: false, reason: "exhausted" };
     return { ok: false, reason: "invalid" };
   } catch (error) {
@@ -132,12 +131,16 @@ export async function consumeDynamicAccessCode(rawCode) {
   }
 }
 
-export async function createDynamicAccessCode(options = {}) {
-  if (!isDynamicCodeStoreConfigured()) {
+/**
+ * @param {CfEnv} env
+ * @param {{ code?: string, maxUses?: unknown, ttlSeconds?: unknown, createdAt?: number }} options
+ */
+export async function createDynamicAccessCode(env, options = {}) {
+  if (!isDynamicCodeStoreConfigured(env)) {
     return { ok: false, reason: "not_configured" };
   }
 
-  const defaults = getDynamicCodeDefaults();
+  const defaults = getDynamicCodeDefaults(env);
   const requested = options.code ? normalizeAccessCode(options.code) : "";
   if (options.code && !requested) {
     return { ok: false, reason: "invalid_code_format" };
@@ -151,11 +154,13 @@ export async function createDynamicAccessCode(options = {}) {
       : Date.now();
 
   const attempts = requested ? 1 : 8;
+  const r = redisClient(env);
+
   for (let i = 0; i < attempts; i += 1) {
     const code = requested || generateCode(10);
-    const remKey = remainingKey(code);
-    const mKey = metaKey(code);
-    const exists = Number(await redis().exists(remKey));
+    const remKey = remainingKey(env, code);
+    const mKey = metaKey(env, code);
+    const exists = Number(await r.exists(remKey));
     if (exists) {
       if (requested) return { ok: false, reason: "already_exists" };
       continue;
@@ -164,10 +169,10 @@ export async function createDynamicAccessCode(options = {}) {
     const metadata = {
       createdAt,
       maxUses: uses,
-      source: "netlify-function",
+      source: "cloudflare-pages",
     };
 
-    const p = redis().pipeline();
+    const p = r.pipeline();
     p.set(remKey, String(uses));
     p.set(mKey, JSON.stringify(metadata));
     if (ttlSeconds > 0) {
@@ -188,11 +193,11 @@ export async function createDynamicAccessCode(options = {}) {
 }
 
 /**
- * Create `count` distinct random codes with identical maxUses, ttlSeconds, and createdAt.
- * Rolls back already-created keys in Redis if a later create fails.
+ * @param {CfEnv} env
+ * @param {{ count?: unknown, maxUses?: unknown, ttlSeconds?: unknown }} options
  */
-export async function createDynamicAccessCodesBatch(options = {}) {
-  if (!isDynamicCodeStoreConfigured()) {
+export async function createDynamicAccessCodesBatch(env, options = {}) {
+  if (!isDynamicCodeStoreConfigured(env)) {
     return { ok: false, reason: "not_configured" };
   }
   const count = parsePositiveInt(options.count, 1);
@@ -203,14 +208,14 @@ export async function createDynamicAccessCodesBatch(options = {}) {
   const codes = [];
 
   for (let i = 0; i < count; i += 1) {
-    const created = await createDynamicAccessCode({
+    const created = await createDynamicAccessCode(env, {
       maxUses: options.maxUses,
       ttlSeconds: options.ttlSeconds,
       createdAt: sharedCreatedAt,
     });
     if (!created.ok) {
       for (const row of codes) {
-        await revokeDynamicAccessCode(row.code);
+        await revokeDynamicAccessCode(env, row.code);
       }
       return { ok: false, reason: created.reason, atIndex: i };
     }
@@ -225,14 +230,16 @@ export async function createDynamicAccessCodesBatch(options = {}) {
   return { ok: true, codes, createdAt: sharedCreatedAt };
 }
 
-export async function revokeDynamicAccessCode(rawCode) {
+/** @param {CfEnv} env */
+export async function revokeDynamicAccessCode(env, rawCode) {
   const code = normalizeAccessCode(rawCode);
   if (!code) return { ok: false, reason: "invalid_code_format" };
-  if (!isDynamicCodeStoreConfigured()) {
+  if (!isDynamicCodeStoreConfigured(env)) {
     return { ok: false, reason: "not_configured" };
   }
   try {
-    const res = await redis().del(remainingKey(code), metaKey(code));
+    const r = redisClient(env);
+    const res = await r.del(remainingKey(env, code), metaKey(env, code));
     return { ok: true, code, removed: Number(res) > 0 };
   } catch (error) {
     return { ok: false, reason: "store_error", error };

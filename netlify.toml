@@ -1,4 +1,5 @@
-# Publish static demo + Netlify Functions.
+# Publish static demo + Netlify Functions (production).
+# Optional Cloudflare Pages + /functions: see wrangler.toml and doc/cloudflare-pages.md.
 # Face assess uploads use multipart bodies; Netlify Functions have payload and wall-clock limits—see scripts/README.proxy.md.
 
 [build]

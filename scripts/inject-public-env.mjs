@@ -15,7 +15,13 @@ if (!fs.existsSync(DEMO_HTML)) {
 }
 
 const src = fs.readFileSync(DEMO_HTML, "utf8");
-const out = src.replaceAll("__TURNSTILE_SITE_KEY__", siteKey);
+let out = src;
+
+// Keep the placeholder in source when key is absent so local builds
+// do not permanently disable captcha in the tracked HTML file.
+if (siteKey) {
+  out = src.replaceAll("__TURNSTILE_SITE_KEY__", siteKey);
+}
 
 if (out !== src) {
   fs.writeFileSync(DEMO_HTML, out, "utf8");

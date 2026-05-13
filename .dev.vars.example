@@ -1,0 +1,14 @@
+# Copy to `.dev.vars` for `npm run dev:pages` (wrangler). Do not commit `.dev.vars`.
+# Same keys as Netlify / `.env.local` for demo APIs and proxy.
+
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+DEMO_ACCESS_CODES=
+DEMO_CODE_ADMIN_SECRET=
+TURNSTILE_SECRET_KEY=
+TURNSTILE_SITE_KEY=
+DEMO_BYPASS_VERIFY=false
+MAIKA_RPPG_UPSTREAM=
+MAIKA_PUBLIC_KEY=
+MAIKA_CAPTCHA_TOKEN=
+CORS_ALLOW_ORIGIN=*

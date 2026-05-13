@@ -1,0 +1,11 @@
+# Cloudflare Pages — dev / secondary deploy alongside Netlify.
+# Netlify stays configured via netlify.toml; Pages uses repo-root /functions and site/ output.
+#
+# Local:   npm run build && npm run dev:pages
+# Deploy:  npm run build && npm run deploy:pages
+#
+# Secrets: copy .env.example vars into `.dev.vars` for wrangler pages dev.
+
+name = "maika-website"
+compatibility_date = "2025-05-01"
+pages_build_output_dir = "site"

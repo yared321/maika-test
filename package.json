@@ -4,11 +4,16 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "node scripts/inject-public-env.mjs && node -e \"console.log('Static site from site/; Netlify packages netlify/functions.')\"",
+    "build": "node scripts/inject-public-env.mjs && node -e \"console.log('Static site output: site/. Netlify: netlify/functions. Cloudflare: functions/.')\"",
     "dev": "node scripts/maika-dev-proxy.mjs",
+    "dev:pages": "npm run build && wrangler pages dev site",
+    "deploy:pages": "npm run build && wrangler pages deploy site",
     "start:proxy": "node scripts/maika-rppg-proxy.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.22.0"
   }
 }
