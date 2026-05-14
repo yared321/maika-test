@@ -190,6 +190,7 @@ function initEmotionModeLayer(controller) {
 function setActiveEmotionModes(controller, valence, arousal) {
   if (!controller.emotionModeEls) return;
   const nearest = getNearestEmotionModes(valence, arousal, 3);
+  const nearestSet = new Set(nearest);
 
   for (const [label, el] of controller.emotionModeEls.entries()) {
     // Keep all mode tags visible for alignment tuning.
