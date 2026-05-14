@@ -177,13 +177,14 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 14px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background:
     radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05), transparent 68%),
     rgba(255, 255, 255, 0.02);
   isolation: isolate;
   --q-accent: rgba(223, 122, 254, 0.2);
+  --axis-label-outset: 1.1rem;
 }
 
 .emotion-map::before {
@@ -283,27 +284,27 @@
 }
 
 .emotion-axis-label.axis-top {
-  top: 0.45rem;
+  top: calc(-1 * var(--axis-label-outset));
   left: 50%;
   transform: translateX(-50%);
 }
 
 .emotion-axis-label.axis-bottom {
-  bottom: 0.45rem;
+  bottom: calc(-1 * var(--axis-label-outset));
   left: 50%;
   transform: translateX(-50%);
 }
 
 .emotion-axis-label.axis-left {
-  left: 0.45rem;
+  left: calc(-1 * var(--axis-label-outset));
   top: 50%;
-  transform: translateY(-50%);
+  transform: translate(-100%, -50%);
 }
 
 .emotion-axis-label.axis-right {
-  right: 0.45rem;
+  right: calc(-1 * var(--axis-label-outset));
   top: 50%;
-  transform: translateY(-50%);
+  transform: translate(100%, -50%);
 }
 
 .emotion-quadrant {
