@@ -100,8 +100,9 @@
   grid-column: span 2;
 }
 
-.demo-landing__strip .demo-strip-card:nth-child(4) {
-  grid-column: 2 / span 2;
+/* Center Step 4 when it is the only card on row 2 (4-step layout). */
+.demo-landing__strip .demo-strip-card:nth-child(4):last-child {
+  grid-column: 3 / span 2;
 }
 
 .demo-landing__strip .demo-strip-card:nth-child(5) {
@@ -201,10 +202,6 @@
 
 .demo-access-card__error.hidden {
   display: none;
-}
-
-.demo-access-card .cf-turnstile {
-  margin-top: 0.15rem;
 }
 
 .demo-access-card__btn {
