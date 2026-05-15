@@ -2,21 +2,29 @@
     {
       "id": "dances_in_dub_echoes",
       "title": "Dances in Dub Echoes",
-      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/dances_in_dub_echoes.mp3"
+      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/dances_in_dub_echoes.mp3", 
+      "image": "/demo/data/images/dances_in_dub_echoes.jpeg",
+      "genres": ["techno"]
     },
     {
       "id": "endless_nightdrive",
       "title": "Endless Nightdrive",
-      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/endless_nightdrive.mp3"
+      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/endless_nightdrive.mp3", 
+      "image": "/demo/data/images/endless_nightdrive.jpeg",
+      "genres": ["synthwave"]
     },
     {
       "id": "footsteps_fade",
       "title": "Footsteps Fade",
-      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/footsteps_fade.mp3"
+      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/footsteps_fade.mp3",
+      "image": "/demo/data/images/footsteps_fade.jpeg",
+      "genres": ["neo-classical"]
     },
     {
       "id": "slow_orbit",
       "title": "Slow Orbit",
-      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/slow_orbit.mp3"
+      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/slow_orbit.mp3", 
+      "image": "/demo/data/images/slow_orbit.jpeg",
+      "genres": ["ambient"]
     }
   ]
