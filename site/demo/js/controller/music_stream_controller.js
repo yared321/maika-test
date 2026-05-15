@@ -2,11 +2,21 @@
  * Demo music list + playback wiring.
  *
  * Flow: demo.js imports `fetchMusicData` → runs once at startup → fills
- * #music-select, binds one change handler, attaches audio control listeners once.
+ * #music-select, binds one change handler, attaches one audio control listener set.
  *
  * Emits `maika-demo:music-ended` on `document` when a track finishes (wizard can listen).
  */
+import {
+  attachWaveformCanvas,
+  clearWaveform,
+  ensureSpectrumFromUserGesture,
+  loadWaveformFromUrl,
+  startSpectrumRenderLoop,
+  stopSpectrumRenderLoop,
+} from "./music_waveform_renderer.js";
+
 export const MUSIC_ENDED_EVENT = "maika-demo:music-ended";
+export const MUSIC_PROGRESS_EVENT = "maika-demo:music-progress";
 
 let musicData = [];
 let controlsBound = false;
@@ -46,6 +56,31 @@ function getSelect() {
 /** Main audio element driven by custom controls (`#main-audio`). */
 function getMainAudio() {
   return document.getElementById("main-audio");
+}
+
+function getMusicDeck() {
+  return document.getElementById("music-player-deck");
+}
+
+function setDeckPlaying(isPlaying) {
+  const deck = getMusicDeck();
+  if (!deck) return;
+  deck.classList.toggle("is-playing", Boolean(isPlaying));
+}
+
+function setPlayButtonAppearance(glyph, ariaLabel) {
+  const playBtn = document.getElementById("play-pause-btn");
+  const playGlyph = document.getElementById("play-pause-glyph");
+  if (playGlyph) playGlyph.textContent = glyph;
+  else if (playBtn) playBtn.textContent = glyph;
+  if (playBtn && ariaLabel) playBtn.setAttribute("aria-label", ariaLabel);
+}
+
+function setWavePanelLoading(on) {
+  const el = document.getElementById("music-wave-loading");
+  if (!el) return;
+  el.hidden = !on;
+  el.setAttribute("aria-busy", on ? "true" : "false");
 }
 
 /** Escapes plain text for safe insertion into HTML (option labels). */
@@ -94,12 +129,95 @@ function formatTime(seconds) {
   return `${min}:${sec < 10 ? "0" : ""}${sec}`;
 }
 
-/** Updates visible title row for the picked track (JSON has no artist — placeholder label). */
+function normalizeGenres(song) {
+  if (!song) return [];
+  const raw = song.genres ?? song.genre;
+  if (Array.isArray(raw)) {
+    return raw.map((g) => String(g || "").trim()).filter(Boolean);
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    return [raw.trim()];
+  }
+  return [];
+}
+
+/**
+ * Turns optional `image` from music.json into a browser URL (absolute https, site-root
+ * `/demo/...`, or legacy `site/demo/...` paths from the repo layout).
+ */
+function resolveTrackImageUrl(song) {
+  const raw = song?.image;
+  if (!raw || typeof raw !== "string") return "";
+  const t = raw.trim();
+  if (!t) return "";
+  if (/^https?:\/\//i.test(t)) return t;
+  if (t.startsWith("/")) return t;
+  if (t.startsWith("site/")) return `/${t.slice("site/".length)}`;
+  try {
+    const base = new URL("../../data/music.json", import.meta.url).href;
+    return new URL(t, base).href;
+  } catch {
+    return "";
+  }
+}
+
+function clearCoverArt() {
+  const img = document.getElementById("music-cover-art");
+  const wrap = document.getElementById("music-cover-wrap");
+  if (img) {
+    img.onerror = null;
+    img.hidden = true;
+    img.removeAttribute("src");
+    img.alt = "";
+  }
+  if (wrap) wrap.classList.add("music-player__cover-wrap--empty");
+}
+
+function updateCoverArt(song) {
+  const img = document.getElementById("music-cover-art");
+  const wrap = document.getElementById("music-cover-wrap");
+  if (!img || !wrap) return;
+
+  const url = resolveTrackImageUrl(song);
+  if (!url) {
+    clearCoverArt();
+    return;
+  }
+
+  wrap.classList.remove("music-player__cover-wrap--empty");
+  img.alt = song?.title ? `Cover art for ${song.title}` : "";
+  img.hidden = false;
+  img.onerror = () => {
+    img.onerror = null;
+    clearCoverArt();
+  };
+  img.src = url;
+}
+
+/** Updates visible title row for the picked track. */
 function updateNowPlaying(song) {
   const titleEl = document.getElementById("title");
   const artistEl = document.getElementById("artist");
+  const genresEl = document.getElementById("genre-tags");
   if (titleEl) titleEl.textContent = song.title;
-  if (artistEl) artistEl.textContent = "Maika demo";
+  if (artistEl) {
+    const artist = typeof song?.artist === "string" ? song.artist.trim() : "";
+    artistEl.textContent = artist;
+    artistEl.hidden = !artist;
+  }
+  if (genresEl) {
+    const genres = normalizeGenres(song);
+    if (genres.length > 0) {
+      genresEl.innerHTML = genres
+        .map((genre) => `<span class="music-player__genre-chip">${escapeHtml(genre)}</span>`)
+        .join("");
+      genresEl.hidden = false;
+    } else {
+      genresEl.innerHTML = "";
+      genresEl.hidden = true;
+    }
+  }
+  updateCoverArt(song);
 }
 
 /**
@@ -119,9 +237,6 @@ function bindAudioControlsOnce() {
   const currentTimeEl = document.getElementById("current-time");
   const durationEl = document.getElementById("duration");
   const volumeSlider = document.getElementById("volume-slider");
-  const volumeContainer = volumeSlider
-    ? volumeSlider.closest(".volume-container")
-    : null;
 
   if (
     !audio ||
@@ -143,36 +258,47 @@ function bindAudioControlsOnce() {
   if (nextBtn) nextBtn.hidden = true;
   if (rewindBtn) rewindBtn.hidden = true;
   if (forwardBtn) forwardBtn.hidden = true;
-  if (volumeContainer) volumeContainer.hidden = true;
   rewindBtn.disabled = true;
   forwardBtn.disabled = true;
   progressBar.disabled = true;
-  playBtn.textContent = "▶ Play";
+  setPlayButtonAppearance("▶", "Play selected track");
   playBtn.disabled = true;
-  playBtn.setAttribute("aria-label", "Play selected track");
 
   playBtn.addEventListener("click", () => {
-    if (audio.paused && getSelect().value !== "") {
-      playBtn.textContent = "⏳ Starting…";
-      playBtn.disabled = true;
-      void audio.play().catch(() => {
-        playBtn.textContent = "▶ Play";
+    if (getSelect().value === "" || !audio.paused) return;
+    setPlayButtonAppearance("⏳", "Starting playback");
+    playBtn.disabled = true;
+    void (async () => {
+      try {
+        await ensureSpectrumFromUserGesture(audio);
+        startSpectrumRenderLoop();
+        await audio.play();
+      } catch {
+        setPlayButtonAppearance("▶", "Play selected track");
         playBtn.disabled = false;
-      });
-    }
+        setDeckPlaying(false);
+        stopSpectrumRenderLoop();
+      }
+    })();
   });
 
   audio.addEventListener("play", () => {
-    playBtn.textContent = "⏸ Playing";
-    playBtn.disabled = false;
+    setDeckPlaying(true);
+    setPlayButtonAppearance("♪", "Playing");
+    playBtn.disabled = true;
+    startSpectrumRenderLoop();
   });
+
   audio.addEventListener("pause", () => {
-    playBtn.textContent = "▶ Play";
-    playBtn.disabled = false;
+    stopSpectrumRenderLoop();
+    setDeckPlaying(false);
   });
+
   audio.addEventListener("ended", () => {
-    playBtn.textContent = "▶ Play";
+    setPlayButtonAppearance("▶", "Play");
     playBtn.disabled = false;
+    setDeckPlaying(false);
+    stopSpectrumRenderLoop();
     setRangeFillPercent(progressBar, 0);
     progressBar.value = "0";
     currentTimeEl.textContent = "0:00";
@@ -189,6 +315,15 @@ function bindAudioControlsOnce() {
     setRangeFillPercent(progressBar, progress);
     currentTimeEl.textContent = formatTime(audio.currentTime);
     durationEl.textContent = formatTime(audio.duration);
+    document.dispatchEvent(
+      new CustomEvent(MUSIC_PROGRESS_EVENT, {
+        bubbles: true,
+        detail: {
+          currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+          duration: Number.isFinite(audio.duration) ? audio.duration : 0,
+        },
+      }),
+    );
   });
 
   audio.addEventListener("loadedmetadata", () => {
@@ -257,8 +392,12 @@ function onMusicSelectChange() {
     }
     if (currentTimeEl) currentTimeEl.textContent = "0:00";
     if (durationEl) durationEl.textContent = "0:00";
-    if (playBtn) playBtn.textContent = "▶ Play";
     if (playBtn) playBtn.disabled = true;
+    setPlayButtonAppearance("▶", "Play selected track");
+    setDeckPlaying(false);
+    setWavePanelLoading(false);
+    clearWaveform();
+    clearCoverArt();
     return;
   }
 
@@ -272,9 +411,10 @@ function onMusicSelectChange() {
 
   audio.pause();
   if (playBtn) {
-    playBtn.textContent = "⏳ Loading…";
+    setPlayButtonAppearance("▶", "Play selected track");
     playBtn.disabled = true;
   }
+  setWavePanelLoading(true);
   audio.src = song.url;
   audio.preload = "auto";
   audio.load();
@@ -292,19 +432,23 @@ function onMusicSelectChange() {
   if (durationEl) durationEl.textContent = "0:00";
 
   updateNowPlaying(song);
+  void loadWaveformFromUrl(song.url);
 
   const markPlayable = () => {
     if (playBtn && getSelect().value !== "") {
-      playBtn.textContent = "▶ Play";
+      setPlayButtonAppearance("▶", "Play selected track");
       playBtn.disabled = false;
     }
+    setWavePanelLoading(false);
   };
 
   const markFailed = () => {
     if (playBtn && getSelect().value !== "") {
-      playBtn.textContent = "⚠ Unable to load";
+      setPlayButtonAppearance("⚠", "Unable to load track");
       playBtn.disabled = true;
     }
+    setWavePanelLoading(false);
+    clearWaveform();
   };
 
   audio.addEventListener("canplay", markPlayable, { once: true });
@@ -332,6 +476,8 @@ export async function fetchMusicData() {
     populateMusicSelect();
     bindMusicSelectOnce();
     bindAudioControlsOnce();
+    const wf = document.getElementById("music-waveform-canvas");
+    if (wf) attachWaveformCanvas(wf, getMainAudio);
     const pb = document.getElementById("progress-bar");
     const vs = document.getElementById("volume-slider");
     setRangeFillPercent(pb, pb ? Number(pb.value) || 0 : 0);
@@ -360,8 +506,10 @@ export function stopMusicPlayback(options = {}) {
       fallback.currentTime = 0;
     }
     if (playBtn) {
-      playBtn.textContent = "▶ Play";
+      setPlayButtonAppearance("▶", "Play");
     }
+    setDeckPlaying(false);
+    stopSpectrumRenderLoop();
   };
 
   const fadeOutMs = Math.max(0, Number(options.fadeOutMs) || 0);
@@ -464,12 +612,24 @@ export function resetMusicDemoSession() {
   if (durationEl) durationEl.textContent = "0:00";
 
   if (playBtn) {
-    playBtn.textContent = "▶ Play";
+    setPlayButtonAppearance("▶", "Play selected track");
     playBtn.disabled = true;
   }
 
   const titleEl = document.getElementById("title");
   const artistEl = document.getElementById("artist");
+  const genresEl = document.getElementById("genre-tags");
   if (titleEl) titleEl.textContent = "Song Title";
-  if (artistEl) artistEl.textContent = "Artist Name";
+  if (artistEl) {
+    artistEl.textContent = "";
+    artistEl.hidden = true;
+  }
+  if (genresEl) {
+    genresEl.innerHTML = "";
+    genresEl.hidden = true;
+  }
+  clearCoverArt();
+  setDeckPlaying(false);
+  setWavePanelLoading(false);
+  clearWaveform();
 }

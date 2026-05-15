@@ -178,10 +178,13 @@
   aspect-ratio: 1 / 1;
   border-radius: 14px;
   overflow: visible;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(200, 225, 255, 0.2);
   background:
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05), transparent 68%),
-    rgba(255, 255, 255, 0.02);
+    radial-gradient(circle at 50% 58%, rgba(150, 170, 255, 0.12), transparent 58%),
+    radial-gradient(circle at 20% 18%, rgba(76, 227, 255, 0.12), transparent 42%),
+    radial-gradient(circle at 84% 14%, rgba(223, 122, 254, 0.13), transparent 48%),
+    radial-gradient(circle at 70% 78%, rgba(132, 83, 210, 0.12), transparent 46%),
+    linear-gradient(170deg, rgba(8, 14, 30, 0.9), rgba(15, 10, 35, 0.92));
   isolation: isolate;
   --q-accent: rgba(223, 122, 254, 0.2);
   --axis-label-outset: 1.1rem;
@@ -218,22 +221,87 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    linear-gradient(rgba(172, 206, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(172, 206, 255, 0.08) 1px, transparent 1px);
   background-size: 10% 10%;
-  opacity: 0.45;
+  opacity: 0.34;
   animation: map-grid-breathe 4.2s ease-in-out infinite;
   z-index: 0;
+}
+
+.emotion-constellation {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.emotion-constellation-link {
+  stroke: rgba(170, 210, 255, 0.3);
+  stroke-width: 0.28;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1.5px rgba(140, 220, 255, 0.2));
+}
+
+.emotion-constellation-link.is-cluster {
+  stroke: rgba(168, 213, 255, 0.34);
+  stroke-width: 0.34;
+}
+
+.emotion-constellation-link.is-cluster-main {
+  stroke: rgba(196, 228, 255, 0.52);
+  stroke-width: 0.4;
+  filter: drop-shadow(0 0 4px rgba(130, 220, 255, 0.36));
+}
+
+.emotion-constellation-link.is-primary {
+  stroke: rgba(126, 238, 202, 0.55);
+  stroke-width: 0.42;
+  filter: drop-shadow(0 0 3px rgba(118, 240, 191, 0.42));
+}
+
+.emotion-constellation-star {
+  fill: rgba(202, 224, 255, 0.36);
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 0.18;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: emotion-star-twinkle 3.6s ease-in-out infinite;
+}
+
+.emotion-constellation-star.is-active {
+  fill: rgba(188, 237, 255, 1);
+  stroke: rgba(255, 255, 255, 0.72);
+  filter:
+    drop-shadow(0 0 4px rgba(76, 227, 255, 0.7))
+    drop-shadow(0 0 8px rgba(122, 176, 255, 0.46));
+  animation:
+    emotion-star-twinkle 2.6s ease-in-out infinite,
+    emotion-star-active-glow 2.2s ease-in-out infinite;
+}
+
+.emotion-constellation-star.is-primary {
+  fill: rgba(210, 255, 236, 1);
+  stroke: rgba(255, 255, 255, 0.94);
+  filter:
+    drop-shadow(0 0 6px rgba(118, 240, 191, 0.95))
+    drop-shadow(0 0 14px rgba(118, 240, 191, 0.62))
+    drop-shadow(0 0 22px rgba(76, 227, 255, 0.4));
+  animation:
+    emotion-star-twinkle 1.8s ease-in-out infinite,
+    emotion-star-primary-beacon 1.35s ease-in-out infinite;
 }
 
 .emotion-circumplex-ring {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border: 1px dashed rgba(192, 218, 255, 0.28);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 0 24px rgba(223, 122, 254, 0.08);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 0 32px rgba(161, 126, 255, 0.14);
   z-index: 1;
   opacity: 0.85;
 }
@@ -246,8 +314,8 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(255, 255, 255, 0.65);
-  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.08);
+  background: rgba(235, 246, 255, 0.82);
+  box-shadow: 0 0 0 6px rgba(214, 236, 255, 0.14);
   z-index: 3;
 }
 
@@ -305,30 +373,6 @@
   right: calc(-1 * var(--axis-label-outset));
   top: 50%;
   transform: translate(100%, -50%);
-}
-
-.emotion-quadrant {
-  display: none;
-}
-
-.emotion-quadrant.q1 {
-  top: 14%;
-  right: 11%;
-}
-
-.emotion-quadrant.q2 {
-  top: 14%;
-  left: 11%;
-}
-
-.emotion-quadrant.q3 {
-  bottom: 14%;
-  left: 11%;
-}
-
-.emotion-quadrant.q4 {
-  bottom: 14%;
-  right: 11%;
 }
 
 .emotion-point {
@@ -469,50 +513,10 @@
     cubic-bezier(0.25, 0.82, 0.25, 1) forwards;
 }
 
-.emotion-point-label {
-  position: absolute;
-  left: clamp(34px, var(--point-x, 50%), calc(100% - 34px));
-  top: clamp(28px, var(--point-y, 50%), calc(100% - 28px));
-  transform: translate(-50%, calc(-100% - 12px));
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(7, 10, 19, 0.72);
-  padding: 0.28rem 0.6rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: #f0f6ff;
-  backdrop-filter: blur(7px);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34);
-  z-index: 6;
-  transition: left 240ms ease, top 240ms ease, transform 240ms ease;
-  white-space: nowrap;
-}
-
-.emotion-point-label.below {
-  transform: translate(-50%, 12px);
-}
-
-.emotion-point-label.edge-right {
-  transform: translate(calc(-100% - 12px), calc(-100% - 2px));
-}
-
-.emotion-point-label.edge-left {
-  transform: translate(12px, calc(-100% - 2px));
-}
-
-.emotion-point-label.below.edge-right {
-  transform: translate(calc(-100% - 12px), 10px);
-}
-
-.emotion-point-label.below.edge-left {
-  transform: translate(12px, 10px);
-}
-
 .emotion-mode-layer {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 4;
   pointer-events: none;
 }
 
@@ -543,21 +547,36 @@
     border-color 220ms ease,
     box-shadow 220ms ease;
   white-space: nowrap;
+  animation: none;
+}
+
+.emotion-mode-tag::before {
+  content: "✦";
+  margin-right: 0.28rem;
+  color: rgba(160, 234, 255, 0.9);
 }
 
 .emotion-mode-tag.is-active {
   opacity: 1;
+  border-color: rgba(160, 218, 255, 0.38);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(160, 218, 255, 0.12) inset,
+    0 0 12px rgba(76, 227, 255, 0.16);
+  animation: emotion-tag-come-go 3.2s ease-in-out infinite;
 }
 
 .emotion-mode-tag.is-primary {
   font-weight: 800;
   color: #ffffff;
-  border-color: rgba(118, 240, 191, 0.5);
+  border-color: rgba(118, 240, 191, 0.72);
   box-shadow:
     0 10px 24px rgba(0, 0, 0, 0.32),
-    0 0 0 1px rgba(118, 240, 191, 0.18) inset,
-    0 0 14px rgba(118, 240, 191, 0.28);
-  transform: translate(-50%, -50%) scale(1.06);
+    0 0 0 1px rgba(118, 240, 191, 0.24) inset,
+    0 0 16px rgba(118, 240, 191, 0.4),
+    0 0 30px rgba(76, 227, 255, 0.18);
+  transform: translate(-50%, -50%) scale(1.08);
+  animation: emotion-tag-come-go-primary 2.4s ease-in-out infinite;
 }
 
 .emotion-map:hover .emotion-point {
@@ -596,6 +615,62 @@
   }
   50% {
     opacity: 0.5;
+  }
+}
+
+@keyframes emotion-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.58;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes emotion-star-active-glow {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.18);
+  }
+}
+
+@keyframes emotion-star-primary-beacon {
+  0%,
+  100% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.38);
+    opacity: 0.95;
+  }
+}
+
+@keyframes emotion-tag-come-go {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -52%) scale(1.03);
+  }
+}
+
+@keyframes emotion-tag-come-go-primary {
+  0%,
+  100% {
+    opacity: 0.86;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -53%) scale(1.1);
   }
 }
 
@@ -677,11 +752,6 @@
     font-size: 0.68rem;
   }
 
-  .emotion-point-label {
-    font-size: 0.72rem;
-    padding: 0.24rem 0.5rem;
-  }
-
   .emotion-mode-tag {
     font-size: 0.68rem;
     padding: 0.18rem 0.46rem;
@@ -690,6 +760,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .emotion-grid,
+  .emotion-constellation-star,
+  .emotion-mode-tag,
   .emotion-point,
   .emotion-point::after,
   .emotion-guide.guide-x,

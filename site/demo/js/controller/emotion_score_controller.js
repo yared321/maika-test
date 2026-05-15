@@ -7,6 +7,13 @@ function bindDomElements(controller) {
   controller.emotionMap = controller.root.querySelector("#emotion-map");
   controller.emotionMapPoint = controller.root.querySelector("#emotion-map-point");
   controller.emotionModeLayer = controller.root.querySelector("#emotion-mode-layer");
+  controller.emotionConstellation = controller.root.querySelector("#emotion-constellation");
+  controller.emotionConstellationLinks = controller.root.querySelector(
+    "#emotion-constellation-links",
+  );
+  controller.emotionConstellationStars = controller.root.querySelector(
+    "#emotion-constellation-stars",
+  );
   controller.emotionGuideX = controller.root.querySelector("#emotion-guide-x");
   controller.emotionGuideY = controller.root.querySelector("#emotion-guide-y");
   controller.emotionPrimaryLabel = controller.root.querySelector("#emotion-primary-label");
@@ -86,11 +93,44 @@ function getQuadrantLabel(valence, arousal) {
 }
 
 /**
- * Return the simplified user-facing tone (emoji/title/text) for a quadrant.
+ * Return the simplified user-facing tone (emoji/title/text).
+ * Rules:
+ * - If both axes are close to center (|x| <= 20 and |y| <= 20), treat as neutral.
+ * - If arousal is close to x-axis (|y| <= 20), ignore arousal and speak only by valence.
+ * - Otherwise use quadrant-style messaging.
+ * @param {number} valence
+ * @param {number} arousal
  * @param {string} quadrant
  * @returns {{ emoji: string, title: string, text: string }}
  */
-function getSimpleTone(quadrant) {
+function getSimpleTone(valence, arousal, quadrant) {
+  const CENTER_THRESHOLD = 20;
+  const nearCenterValence = Math.abs(Number(valence)) <= CENTER_THRESHOLD;
+  const nearCenterArousal = Math.abs(Number(arousal)) <= CENTER_THRESHOLD;
+
+  if (nearCenterValence && nearCenterArousal) {
+    return {
+      emoji: "😐",
+      title: "Neutral",
+      text: "Both activation and positivity are close to neutral right now.",
+    };
+  }
+
+  if (nearCenterArousal) {
+    if (valence >= 0) {
+      return {
+        emoji: "🙂",
+        title: "Positive",
+        text: "Your feeling leans positive, while activation stays close to neutral.",
+      };
+    }
+    return {
+      emoji: "😕",
+      title: "Negative",
+      text: "Your feeling leans negative, while activation stays close to neutral.",
+    };
+  }
+
   if (quadrant === "Excited") {
     return {
       emoji: "😄",
@@ -101,7 +141,7 @@ function getSimpleTone(quadrant) {
   if (quadrant === "Stressed") {
     return {
       emoji: "😣",
-      title: "Energized but tense",
+      title: "High energy and low mood",
       text: "Your body looks activated, while your feeling leans negative or unpleasant.",
     };
   }
@@ -133,6 +173,62 @@ function computeMapPosition(valence, arousal) {
   };
 }
 
+/**
+ * Create an SVG element in the SVG namespace.
+ * Uses document.createElementNS with the standard SVG namespace URI to ensure proper SVG element creation.
+ * @param {string} tag - The SVG element tag name (e.g., 'line', 'circle').
+ * @returns {SVGElement}
+ */
+function createSvgElement(tag) {
+  return document.createElementNS("http://www.w3.org/2000/svg", tag);
+}
+
+/**
+ * Draw SVG lines connecting the nearest emotion modes to form a constellation pattern,
+ * including links between modes and from the primary mode to the current point.
+ * @param {object} controller - The controller object containing DOM elements and positions.
+ * @param {string[]} nearestLabels - Array of labels for the nearest emotion modes.
+ * @param {number} mapLeft - The x-coordinate of the current point on the map.
+ * @param {number} mapTop - The y-coordinate of the current point on the map.
+ */
+function drawConstellationLines(controller, nearestLabels, mapLeft, mapTop) {
+  if (!controller.emotionConstellationLinks || !controller.emotionModePositions) return;
+  controller.emotionConstellationLinks.innerHTML = "";
+
+  const nearest = Array.isArray(nearestLabels) ? nearestLabels : [];
+  if (!nearest.length) return;
+
+  const linkPairs = [];
+  if (nearest.length >= 2) linkPairs.push([nearest[0], nearest[1]]);
+  if (nearest.length >= 3) linkPairs.push([nearest[1], nearest[2]]);
+
+  linkPairs.forEach((pair, pairIndex) => {
+    const a = controller.emotionModePositions.get(pair[0]);
+    const b = controller.emotionModePositions.get(pair[1]);
+    if (!a || !b) return;
+    const line = createSvgElement("line");
+    line.setAttribute("x1", a.mapLeft.toFixed(2));
+    line.setAttribute("y1", a.mapTop.toFixed(2));
+    line.setAttribute("x2", b.mapLeft.toFixed(2));
+    line.setAttribute("y2", b.mapTop.toFixed(2));
+    line.setAttribute(
+      "class",
+      "emotion-constellation-link" + (pairIndex === 0 ? " is-cluster-main" : " is-cluster"),
+    );
+    controller.emotionConstellationLinks.appendChild(line);
+  });
+
+  const primaryPos = controller.emotionModePositions.get(nearest[0]);
+  if (!primaryPos) return;
+  const toPoint = createSvgElement("line");
+  toPoint.setAttribute("x1", primaryPos.mapLeft.toFixed(2));
+  toPoint.setAttribute("y1", primaryPos.mapTop.toFixed(2));
+  toPoint.setAttribute("x2", Number(mapLeft).toFixed(2));
+  toPoint.setAttribute("y2", Number(mapTop).toFixed(2));
+  toPoint.setAttribute("class", "emotion-constellation-link is-primary");
+  controller.emotionConstellationLinks.appendChild(toPoint);
+}
+
 const EMOTION_MODE_POINTS = [
   { label: "Angry", valence: -25, arousal: 90 },
   { label: "Afraid", valence: -54, arousal: 72 },
@@ -155,6 +251,14 @@ const EMOTION_MODE_POINTS = [
   { label: "Calm", valence: 36, arousal: -84 },
 ];
 
+/**
+ * Find the nearest emotion modes to the given valence and arousal scores
+ * by calculating Euclidean distance and returning the top N labels.
+ * @param {number} valence - The valence score.
+ * @param {number} arousal - The arousal score.
+ * @param {number} count - The number of nearest modes to return.
+ * @returns {string[]} Array of emotion mode labels sorted by proximity.
+ */
 function getNearestEmotionModes(valence, arousal, count) {
   return EMOTION_MODE_POINTS
     .map((m) => {
@@ -170,13 +274,28 @@ function getNearestEmotionModes(valence, arousal, count) {
     .map((m) => m.label);
 }
 
+/**
+ * Initialize the emotion mode layer by creating DOM elements and SVG stars
+ * for each predefined emotion mode point on the map.
+ * @param {object} controller - The controller object to initialize.
+ */
 function initEmotionModeLayer(controller) {
   if (!controller.emotionModeLayer) return;
   controller.emotionModeLayer.innerHTML = "";
+  if (controller.emotionConstellationStars) {
+    controller.emotionConstellationStars.innerHTML = "";
+  }
+  if (controller.emotionConstellationLinks) {
+    controller.emotionConstellationLinks.innerHTML = "";
+  }
   controller.emotionModeEls = new Map();
+  controller.emotionModeStars = new Map();
+  controller.emotionModePositions = new Map();
 
   for (const mode of EMOTION_MODE_POINTS) {
     const pos = computeMapPosition(mode.valence, mode.arousal);
+    controller.emotionModePositions.set(mode.label, pos);
+
     const el = document.createElement("span");
     el.className = "emotion-mode-tag";
     el.textContent = mode.label;
@@ -184,10 +303,29 @@ function initEmotionModeLayer(controller) {
     el.style.top = `${pos.mapTop.toFixed(2)}%`;
     controller.emotionModeLayer.appendChild(el);
     controller.emotionModeEls.set(mode.label, el);
+
+    if (controller.emotionConstellationStars) {
+      const star = createSvgElement("circle");
+      star.setAttribute("cx", pos.mapLeft.toFixed(2));
+      star.setAttribute("cy", pos.mapTop.toFixed(2));
+      star.setAttribute("r", "0.72");
+      star.setAttribute("class", "emotion-constellation-star");
+      controller.emotionConstellationStars.appendChild(star);
+      controller.emotionModeStars.set(mode.label, star);
+    }
   }
 }
 
-function setActiveEmotionModes(controller, valence, arousal) {
+/**
+ * Set the active state for emotion mode elements and stars based on the nearest modes
+ * to the current valence and arousal scores, and draw constellation lines if positions are valid.
+ * @param {object} controller - The controller object containing mode elements.
+ * @param {number} valence - The valence score.
+ * @param {number} arousal - The arousal score.
+ * @param {number} mapLeft - The x-coordinate of the current point.
+ * @param {number} mapTop - The y-coordinate of the current point.
+ */
+function setActiveEmotionModes(controller, valence, arousal, mapLeft, mapTop) {
   if (!controller.emotionModeEls) return;
   const nearest = getNearestEmotionModes(valence, arousal, 3);
   const nearestSet = new Set(nearest);
@@ -198,12 +336,37 @@ function setActiveEmotionModes(controller, valence, arousal) {
     el.classList.toggle("is-active", isActive);
     el.classList.toggle("is-primary", nearest[0] === label);
   }
+
+  if (controller.emotionModeStars) {
+    for (const [label, star] of controller.emotionModeStars.entries()) {
+      const isActive = nearestSet.has(label);
+      star.classList.toggle("is-active", isActive);
+      star.classList.toggle("is-primary", nearest[0] === label);
+    }
+  }
+
+  if (Number.isFinite(mapLeft) && Number.isFinite(mapTop)) {
+    drawConstellationLines(controller, nearest, mapLeft, mapTop);
+  }
 }
 
+/**
+ * Clear the active state from all emotion mode elements, stars, and remove constellation lines.
+ * @param {object} controller - The controller object containing mode elements.
+ */
 function clearActiveEmotionModes(controller) {
-  if (!controller.emotionModeEls) return;
-  for (const el of controller.emotionModeEls.values()) {
-    el.classList.remove("is-active", "is-primary");
+  if (controller.emotionModeEls) {
+    for (const el of controller.emotionModeEls.values()) {
+      el.classList.remove("is-active", "is-primary");
+    }
+  }
+  if (controller.emotionModeStars) {
+    for (const star of controller.emotionModeStars.values()) {
+      star.classList.remove("is-active", "is-primary");
+    }
+  }
+  if (controller.emotionConstellationLinks) {
+    controller.emotionConstellationLinks.innerHTML = "";
   }
 }
 
@@ -339,7 +502,7 @@ function updateArousalSummary(controller, valence, arousal, quadrant) {
  * @param {string} quadrant
  */
 function updateSimpleSummaryAndMeters(controller, valence, arousal, quadrant) {
-  const simpleTone = getSimpleTone(quadrant);
+  const simpleTone = getSimpleTone(valence, arousal, quadrant);
   const primaryMagnitude = Math.abs(arousal);
   if (controller.emotionSimpleEmoji) controller.emotionSimpleEmoji.textContent = simpleTone.emoji;
   if (controller.emotionSimpleTitle) controller.emotionSimpleTitle.textContent = simpleTone.title;
@@ -374,7 +537,7 @@ function updateMapAndGuides(controller, valence, arousal, mapLeft, mapTop) {
     controller.emotionMap.style.setProperty("--point-x", mapLeft.toFixed(2) + "%");
     controller.emotionMap.style.setProperty("--point-y", mapTop.toFixed(2) + "%");
   }
-  setActiveEmotionModes(controller, valence, arousal);
+  setActiveEmotionModes(controller, valence, arousal, mapLeft, mapTop);
   if (controller.emotionGuideX) {
     controller.emotionGuideX.style.left = (valence >= 0 ? 50 : mapLeft).toFixed(2) + "%";
     controller.emotionGuideX.style.top = mapTop.toFixed(2) + "%";

@@ -68,7 +68,6 @@ function getDomReferences() {
     modelsStatus: H.byId("models-status"),
     btnStart: H.byId("btn-start"),
     btnCancel: H.byId("btn-cancel"),
-    btnAnother: H.byId("btn-another"),
     overlayCountdown: H.byId("overlay-countdown"),
     countdownNumber: H.byId("countdown-number"),
     recordingPill: H.byId("recording-pill"),
@@ -410,7 +409,7 @@ function applyRecordingOutcomeHint(baseTxt, uploadResult, endpointConfigured) {
     showError(
       "Upload URL is not configured. Set meta face-scan-upload-url or MAIKA_FACE_SCAN_UPLOAD_URL (see README).",
     );
-    parts.push("Set the upload URL, then use Record again when ready.");
+    parts.push("Set the upload URL, then refresh the page to try again.");
     cameraDOM.mimeHint.textContent = parts.join(" ");
     return;
   }
@@ -450,12 +449,12 @@ function applyRecordingOutcomeHint(baseTxt, uploadResult, endpointConfigured) {
         '".',
     );
   }
-  parts.push("Use Record again to retry when the issue is resolved.");
+  parts.push("Refresh the page to retry when the issue is resolved.");
   cameraDOM.mimeHint.textContent = parts.join(" ");
 }
 
 /**
- * Same as Cancel / Record again: stop streams, panels, overlays, blob bridge.
+ * Same as Cancel: stop streams, panels, overlays, blob bridge.
  * Safe to call from demo wizard when exiting the flow.
  */
 export function resetFaceScanFlowForLanding() {
@@ -497,7 +496,6 @@ function hasRequiredDom() {
   return !!(
     cameraDOM.btnStart &&
     cameraDOM.btnCancel &&
-    cameraDOM.btnAnother &&
     cameraDOM.btnCameraRetry &&
     cameraDOM.btnCameraBack &&
     cameraDOM.preview
@@ -633,10 +631,6 @@ function bindFaceScanEvents(camera, recording) {
       if (recording) recording.abortRecordingDiscard();
       return;
     }
-    resetUiToStart(camera, recording);
-  });
-
-  cameraDOM.btnAnother.addEventListener("click", function () {
     resetUiToStart(camera, recording);
   });
 

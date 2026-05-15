@@ -1,6 +1,7 @@
 import {
   fetchMusicData,
   MUSIC_ENDED_EVENT,
+  MUSIC_PROGRESS_EVENT,
   interruptMusicFadeOut,
   resetMusicDemoSession,
   stopMusicPlayback,
@@ -119,11 +120,16 @@ function createInitialState(stepCount) {
       xAxisValenceLabel: "Neutral",
       xAxisValenceEmoji: "😐",
     },
+    musicGate: {
+      minimumListenSeconds: 60,
+      listenedSeconds: 0,
+      requirementMet: false,
+    },
     nextButtonLabels: new Map([
       [0, "Listen Music"],
       [1, "Proceed to Face Scan"],
       [2, "Continue"],
-      [3, "See Scoring Results"],
+      [3, "See Results"],
       [4, "Done"],
     ]),
   };
@@ -183,9 +189,20 @@ function bindEvents(dom, state, controllers) {
   dom.ageInput?.addEventListener("change", () => validateAgeField(dom));
 
   document.addEventListener(MUSIC_ENDED_EVENT, () => {
-    if (state.currentStep === 1) {
+    if (state.currentStep === 1 && state.musicGate.requirementMet) {
       updateStep(dom, state, 2);
     }
+  });
+
+  document.addEventListener(MUSIC_PROGRESS_EVENT, (ev) => {
+    const seconds = Number(ev?.detail?.currentTime) || 0;
+    if (!state.musicGate.requirementMet) {
+      state.musicGate.listenedSeconds = Math.max(state.musicGate.listenedSeconds, seconds);
+      if (state.musicGate.listenedSeconds >= state.musicGate.minimumListenSeconds) {
+        state.musicGate.requirementMet = true;
+      }
+    }
+    syncMusicStepNextGate(dom, state);
   });
 
   document.addEventListener("maika-demo:face-scan-blob-ready", (ev) => {
@@ -259,6 +276,8 @@ function updateStep(dom, state, targetStep, options = {}) {
 
   if (targetStep === 1) {
     saveDemographics(dom, state);
+    state.musicGate.listenedSeconds = 0;
+    state.musicGate.requirementMet = false;
   }
 
   if (targetStep === 4) {
@@ -278,8 +297,13 @@ function updateStep(dom, state, targetStep, options = {}) {
     dom.nextButton.textContent = state.nextButtonLabels.get(targetStep) ?? "Next";
     dom.nextButton.hidden = false;
   }
+  if (dom.backButton) {
+    // Hide Back from face-scan step onward (camera, slider, final result).
+    dom.backButton.hidden = targetStep >= 2;
+  }
 
   syncFaceStepNextGate(dom, state);
+  syncMusicStepNextGate(dom, state);
 
   if (dom.demoFlow?.hidden) return;
   if (options.focus === false) return;
@@ -287,6 +311,26 @@ function updateStep(dom, state, targetStep, options = {}) {
     "input, select, textarea, button",
   );
   focusable?.focus();
+}
+
+function syncMusicStepNextGate(dom, state) {
+  if (!dom.nextButton || dom.nextButton.hidden) return;
+  if (state.currentStep !== 1) return;
+  const min = state.musicGate.minimumListenSeconds;
+  const listened = Math.min(min, Math.floor(state.musicGate.listenedSeconds));
+  const met = state.musicGate.requirementMet;
+  dom.nextButton.disabled = !met;
+  if (!met) {
+    const remain = Math.max(0, min - listened);
+    const m = Math.floor(remain / 60);
+    const s = String(remain % 60).padStart(2, "0");
+    // setWizardError(dom, `Listen for at least 1:00 before continuing (${m}:${s} remaining).`);
+  } else if (
+    dom.errorMessage &&
+    /Listen for at least 1:00 before continuing/.test(dom.errorMessage.textContent || "")
+  ) {
+    setWizardError(dom, "");
+  }
 }
 
 
@@ -323,6 +367,11 @@ function validateCurrentStep(dom, state) {
  * Advances steps, triggers upload, or returns to landing as appropriate.
  */
 async function handleNextClick(dom, state, controllers) {
+  if (state.currentStep === 1 && !state.musicGate.requirementMet) {
+    syncMusicStepNextGate(dom, state);
+    return;
+  }
+
   if (!validateCurrentStep(dom, state)) {
     setWizardError(dom, "Please complete this step before continuing.");
     return;
