@@ -188,6 +188,7 @@
   isolation: isolate;
   --q-accent: rgba(223, 122, 254, 0.2);
   --axis-label-outset: 1.1rem;
+  transform: translateZ(0);
 }
 
 .emotion-map::before {
@@ -225,8 +226,9 @@
     linear-gradient(90deg, rgba(172, 206, 255, 0.08) 1px, transparent 1px);
   background-size: 10% 10%;
   opacity: 0.34;
-  animation: map-grid-breathe 4.2s ease-in-out infinite;
+  animation: map-grid-breathe 7.5s ease-in-out infinite;
   z-index: 0;
+  will-change: opacity;
 }
 
 .emotion-constellation {
@@ -268,7 +270,7 @@
   stroke-width: 0.18;
   transform-box: fill-box;
   transform-origin: center;
-  animation: emotion-star-twinkle 3.6s ease-in-out infinite;
+  animation: none;
 }
 
 .emotion-constellation-star.is-active {
@@ -278,8 +280,9 @@
     drop-shadow(0 0 4px rgba(76, 227, 255, 0.7))
     drop-shadow(0 0 8px rgba(122, 176, 255, 0.46));
   animation:
-    emotion-star-twinkle 2.6s ease-in-out infinite,
-    emotion-star-active-glow 2.2s ease-in-out infinite;
+    emotion-star-twinkle 3.2s ease-in-out infinite,
+    emotion-star-active-glow 2.8s ease-in-out infinite;
+  will-change: transform, opacity, filter;
 }
 
 .emotion-constellation-star.is-primary {
@@ -290,8 +293,9 @@
     drop-shadow(0 0 14px rgba(118, 240, 191, 0.62))
     drop-shadow(0 0 22px rgba(76, 227, 255, 0.4));
   animation:
-    emotion-star-twinkle 1.8s ease-in-out infinite,
-    emotion-star-primary-beacon 1.35s ease-in-out infinite;
+    emotion-star-twinkle 2.2s ease-in-out infinite,
+    emotion-star-primary-beacon 1.8s ease-in-out infinite;
+  will-change: transform, opacity, filter;
 }
 
 .emotion-circumplex-ring {
@@ -424,7 +428,7 @@
 }
 
 .emotion-guide.guide-x {
-  height: 6px;
+  height: 4px;
   width: 0;
   background: transparent;
 }
@@ -435,15 +439,17 @@
   background:
     linear-gradient(
       to right,
-      rgba(223, 122, 254, 0.12),
-      rgba(76, 227, 255, 0.78) 52%,
-      rgba(255, 255, 255, 0.28)
+      rgba(223, 122, 254, 0.06),
+      rgba(76, 227, 255, 0.42) 52%,
+      rgba(255, 255, 255, 0.12)
     );
   background-size: 220% 100%;
   box-shadow:
-    0 0 14px rgba(76, 227, 255, 0.35),
-    0 1px 0 rgba(255, 255, 255, 0.08) inset;
-  animation: guide-flow-x 2.6s linear infinite;
+    0 0 8px rgba(76, 227, 255, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  animation: guide-flow-x 5.8s linear infinite;
+  opacity: 0.72;
+  will-change: background-position, transform, opacity;
 }
 
 .emotion-guide.guide-x.to-left::before {
@@ -451,29 +457,29 @@
   background:
     linear-gradient(
       to left,
-      rgba(223, 122, 254, 0.12),
-      rgba(76, 227, 255, 0.78) 52%,
-      rgba(255, 255, 255, 0.28)
+      rgba(223, 122, 254, 0.06),
+      rgba(76, 227, 255, 0.42) 52%,
+      rgba(255, 255, 255, 0.12)
     );
-  animation: guide-flow-x-left 2.6s linear infinite;
+  animation: guide-flow-x-left 5.8s linear infinite;
 }
 
 .emotion-guide.guide-x.animate-draw:not(.to-left)::before,
 .emotion-guide.guide-x.animate-draw-replay:not(.to-left)::before {
   animation:
     emotion-guide-grow-x-from-left 0.75s cubic-bezier(0.25, 0.82, 0.25, 1) forwards,
-    guide-flow-x 2.6s linear infinite;
+    guide-flow-x 5.8s linear infinite;
 }
 
 .emotion-guide.guide-x.animate-draw.to-left::before,
 .emotion-guide.guide-x.animate-draw-replay.to-left::before {
   animation:
     emotion-guide-grow-x-from-right 0.75s cubic-bezier(0.25, 0.82, 0.25, 1) forwards,
-    guide-flow-x-left 2.6s linear infinite;
+    guide-flow-x-left 5.8s linear infinite;
 }
 
 .emotion-guide.guide-y {
-  width: 6px;
+  width: 4px;
   height: 0;
   background: transparent;
 }
@@ -482,15 +488,17 @@
   background:
     linear-gradient(
       to bottom,
-      rgba(223, 122, 254, 0.12),
-      rgba(76, 227, 255, 0.78) 52%,
-      rgba(255, 255, 255, 0.28)
+      rgba(223, 122, 254, 0.06),
+      rgba(76, 227, 255, 0.42) 52%,
+      rgba(255, 255, 255, 0.12)
     );
   background-size: 100% 220%;
   box-shadow:
-    0 0 14px rgba(76, 227, 255, 0.35),
-    1px 0 0 rgba(255, 255, 255, 0.08) inset;
-  animation: guide-flow-y 2.6s linear infinite;
+    0 0 8px rgba(76, 227, 255, 0.22),
+    1px 0 0 rgba(255, 255, 255, 0.05) inset;
+  animation: guide-flow-y 5.8s linear infinite;
+  opacity: 0.72;
+  will-change: background-position, clip-path, opacity;
 }
 
 /*
@@ -516,7 +524,7 @@
 .emotion-mode-layer {
   position: absolute;
   inset: 0;
-  z-index: 4;
+  z-index: 7;
   pointer-events: none;
 }
 
@@ -755,6 +763,35 @@
   .emotion-mode-tag {
     font-size: 0.68rem;
     padding: 0.18rem 0.46rem;
+  }
+
+  /* Mobile: smoother/lighter motion to avoid choppy gradient shimmer */
+  .emotion-grid {
+    animation-duration: 10.5s;
+  }
+
+  .emotion-constellation-star.is-active {
+    animation:
+      emotion-star-twinkle 4.6s ease-in-out infinite,
+      emotion-star-active-glow 3.8s ease-in-out infinite;
+  }
+
+  .emotion-constellation-star.is-primary {
+    animation:
+      emotion-star-twinkle 3.2s ease-in-out infinite,
+      emotion-star-primary-beacon 2.7s ease-in-out infinite;
+  }
+
+  .emotion-point::after {
+    animation-duration: 3.4s;
+  }
+
+  .emotion-mode-tag.is-active {
+    animation-duration: 4.2s;
+  }
+
+  .emotion-mode-tag.is-primary {
+    animation-duration: 3.2s;
   }
 }
 
