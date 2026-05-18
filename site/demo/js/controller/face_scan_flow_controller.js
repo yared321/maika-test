@@ -467,6 +467,16 @@ export function resetFaceScanFlowForLanding() {
 }
 
 /**
+ * Return to the face-scan intro so the user can capture a new video
+ * (e.g. after upload rejected for low quality).
+ */
+export function restartFaceScanForNewRecording() {
+  if (!cameraDOM) return;
+  resetUiToStart(faceScanFlowHandles.camera, faceScanFlowHandles.recording);
+  syncStartButtonAvailability();
+}
+
+/**
  * Reset the camera/recording flow UI back to the start page.
  */
 function resetUiToStart(camera, recording) {

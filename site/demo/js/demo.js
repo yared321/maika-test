@@ -17,11 +17,13 @@ import {
   startFaceUpload,
   stopUploadPulse,
   syncFaceStepNextGate,
+  syncRecordAgainButton,
 } from "./controller/face_scan_upload_controller.js";
 
 import {
   initFaceScanFlow,
   resetFaceScanFlowForLanding,
+  restartFaceScanForNewRecording,
 } from "./controller/face_scan_flow_controller.js";
 
 var MUSIC_FADE_MS_ON_BACK_TO_DEMOGRAPHIC = 3000; // Fade duration when wizard Back / Done returns user and music should ease out (ms).
@@ -88,6 +90,7 @@ function getDomReferences() {
     uploadStatusCard: wizardForm?.querySelector("#upload-status-card"),
     uploadStatusLabel: wizardForm?.querySelector("#upload-status-label"),
     uploadProgressTrack: wizardForm?.querySelector("#upload-progress-track"),
+    btnRecordAgain: wizardForm?.querySelector("#btn-record-again"),
   };
 }
 
@@ -220,6 +223,17 @@ function bindEvents(dom, state, controllers) {
   document.addEventListener("maika-demo:face-scan-blob-cleared", () => {
     resetUploadState(state);
     clearRecordedPreview(dom, state);
+    syncRecordAgainButton(dom, false);
+    syncFaceStepNextGate(dom, state);
+  });
+
+  dom.btnRecordAgain?.addEventListener("click", () => {
+    if (state.upload.isInFlight) return;
+    resetUploadState(state);
+    clearRecordedPreview(dom, state);
+    setWizardError(dom, "");
+    syncRecordAgainButton(dom, false);
+    restartFaceScanForNewRecording();
     syncFaceStepNextGate(dom, state);
   });
 

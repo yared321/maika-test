@@ -8,8 +8,35 @@ const UPLOAD_STATUS = {
   idle: "Ready to upload and calculate score",
   uploading: "Uploading video and calculating score…",
   success: "Score calculated. You can continue.",
-  error: "Upload/score calculation failed. Click Continue to retry.",
+  error:
+    "Upload or score failed. Use Record again for a new video, or Continue to retry this one.",
 };
+
+/**
+ * Show or hide the result-panel "Record again" control.
+ * @param {Record<string, HTMLElement|null>} dom
+ * @param {boolean} show
+ */
+export function syncRecordAgainButton(dom, show) {
+  if (!dom.btnRecordAgain) return;
+  dom.btnRecordAgain.classList.toggle("hidden", !show);
+}
+
+/**
+ * Mark upload as failed, surface messages, and offer Record again.
+ * @param {Record<string, HTMLElement|null>} dom
+ * @param {Record<string, any>} state
+ * @param {(dom: Record<string, HTMLElement|null>, message: string) => void} setWizardError
+ * @param {string} statusLabel
+ * @param {string} wizardMessage
+ */
+function failFaceUpload(dom, state, setWizardError, statusLabel, wizardMessage) {
+  state.upload.completed = false;
+  setUploadUiState(dom, state, "error", statusLabel || UPLOAD_STATUS.error);
+  setWizardError(dom, wizardMessage || statusLabel || UPLOAD_STATUS.error);
+  syncRecordAgainButton(dom, true);
+  syncFaceStepNextGate(dom, state);
+}
 
 /**
  * Update upload progress CSS variable (0-100).
@@ -100,6 +127,7 @@ export function clearRecordedPreview(dom, state) {
   }
   dom.uploadPreviewCard?.classList.add("hidden");
   setUploadUiState(dom, state, "idle", UPLOAD_STATUS.idle);
+  syncRecordAgainButton(dom, false);
 }
 
 /**
@@ -118,6 +146,7 @@ export function applyRecordedPreview(dom, state, blob) {
   dom.recordedPreview.load();
   dom.uploadPreviewCard?.classList.remove("hidden");
   setUploadUiState(dom, state, "idle", UPLOAD_STATUS.idle);
+  syncRecordAgainButton(dom, false);
 }
 
 /**
@@ -147,41 +176,43 @@ export async function startFaceUpload(dom, state, setWizardError) {
   const age = String(state.demographics.age || "").trim();
   const sex = String(state.demographics.gender || "").trim();
   if (!age || !sex) {
-    setUploadUiState(dom, state, "error", "Missing age or gender.");
-    setWizardError(
+    failFaceUpload(
       dom,
+      state,
+      setWizardError,
+      UPLOAD_STATUS.error,
       "Age and gender are required before upload. Please return to step 1 and confirm your details.",
     );
-    syncFaceStepNextGate(dom, state);
     return;
   }
 
   if (!state.upload.pendingConsent) {
-    setUploadUiState(dom, state, "error", "Consent required before upload/score.");
-    setWizardError(
+    failFaceUpload(
       dom,
+      state,
+      setWizardError,
+      UPLOAD_STATUS.error,
       "Face-scan consent is required before upload and score calculation.",
     );
-    syncFaceStepNextGate(dom, state);
     return;
   }
 
   const endpoint = resolveEndpoint();
   if (!endpoint) {
-    setUploadUiState(
+    failFaceUpload(
       dom,
       state,
-      "error",
-      "Upload URL is not configured, so score cannot be calculated.",
+      setWizardError,
+      UPLOAD_STATUS.error,
+      "Upload URL is not configured.",
     );
-    setWizardError(dom, "Upload URL is not configured.");
-    syncFaceStepNextGate(dom, state);
     return;
   }
 
   state.upload.isInFlight = true;
   setWizardError(dom, "");
   setUploadUiState(dom, state, "uploading", UPLOAD_STATUS.uploading);
+  syncRecordAgainButton(dom, false);
   syncFaceStepNextGate(dom, state);
 
   try {
@@ -196,6 +227,7 @@ export async function startFaceUpload(dom, state, setWizardError) {
     if (uploadResult.ok) {
       state.upload.completed = true;
       setUploadUiState(dom, state, "success", UPLOAD_STATUS.success);
+      syncRecordAgainButton(dom, false);
       if (uploadResult.data && typeof uploadResult.data === "object") {
         state.assessment.latestResult = uploadResult.data;
       }
@@ -206,8 +238,6 @@ export async function startFaceUpload(dom, state, setWizardError) {
       return;
     }
 
-    state.upload.completed = false;
-    setUploadUiState(dom, state, "error", UPLOAD_STATUS.error);
     const message =
       uploadResult.errorMessage ||
       (uploadResult.timedOut
@@ -215,14 +245,16 @@ export async function startFaceUpload(dom, state, setWizardError) {
         : uploadResult.netError
           ? "Network or CORS error."
           : `Upload failed (HTTP ${uploadResult.status || 0}).`);
-    setWizardError(dom, message);
-    syncFaceStepNextGate(dom, state);
+    failFaceUpload(dom, state, setWizardError, UPLOAD_STATUS.error, message);
   } catch (error) {
-    state.upload.completed = false;
-    setUploadUiState(dom, state, "error", UPLOAD_STATUS.error);
-    setWizardError(dom, "Unexpected upload error. Please try again.");
+    failFaceUpload(
+      dom,
+      state,
+      setWizardError,
+      UPLOAD_STATUS.error,
+      "Unexpected upload error. Please try again.",
+    );
     console.error("Upload failed unexpectedly:", error);
-    syncFaceStepNextGate(dom, state);
   } finally {
     state.upload.isInFlight = false;
     syncFaceStepNextGate(dom, state);

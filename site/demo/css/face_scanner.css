@@ -488,9 +488,15 @@
   }
   
   .result-actions {
+    margin-top: 0.85rem;
     display: flex;
     flex-wrap: wrap;
     gap: 0.65rem;
+  }
+
+  .result-actions .btn:not(.hidden) {
+    flex: 1 1 auto;
+    min-width: 10rem;
   }
 
   .upload-preview-card {
