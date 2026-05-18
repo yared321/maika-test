@@ -121,7 +121,7 @@ function createInitialState(stepCount) {
       xAxisValenceEmoji: "😐",
     },
     musicGate: {
-      minimumListenSeconds: 60,
+      minimumListenSeconds: 30,
       listenedSeconds: 0,
       requirementMet: false,
     },

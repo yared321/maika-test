@@ -1,3 +1,6 @@
+/** Set true to draw SVG lines between nearest emotion modes and the result point. */
+const ENABLE_CONSTELLATION_LINES = false;
+
 /**
  * Cache all DOM elements used by the step-5 emotion visualization UI.
  * This avoids repeated `querySelector` calls during each render cycle.
@@ -279,7 +282,13 @@ function getNearestEmotionModes(valence, arousal, count) {
  * for each predefined emotion mode point on the map.
  * @param {object} controller - The controller object to initialize.
  */
+function hideConstellationLayer(controller) {
+  controller.emotionConstellation?.setAttribute("hidden", "");
+}
+
 function initEmotionModeLayer(controller) {
+  controller.emotionModeLayer?.removeAttribute("hidden");
+  hideConstellationLayer(controller);
   if (!controller.emotionModeLayer) return;
   controller.emotionModeLayer.innerHTML = "";
   if (controller.emotionConstellationStars) {
@@ -304,7 +313,7 @@ function initEmotionModeLayer(controller) {
     controller.emotionModeLayer.appendChild(el);
     controller.emotionModeEls.set(mode.label, el);
 
-    if (controller.emotionConstellationStars) {
+    if (ENABLE_CONSTELLATION_LINES && controller.emotionConstellationStars) {
       const star = createSvgElement("circle");
       star.setAttribute("cx", pos.mapLeft.toFixed(2));
       star.setAttribute("cy", pos.mapTop.toFixed(2));
@@ -337,7 +346,7 @@ function setActiveEmotionModes(controller, valence, arousal, mapLeft, mapTop) {
     el.classList.toggle("is-primary", nearest[0] === label);
   }
 
-  if (controller.emotionModeStars) {
+  if (ENABLE_CONSTELLATION_LINES && controller.emotionModeStars) {
     for (const [label, star] of controller.emotionModeStars.entries()) {
       const isActive = nearestSet.has(label);
       star.classList.toggle("is-active", isActive);
@@ -345,7 +354,11 @@ function setActiveEmotionModes(controller, valence, arousal, mapLeft, mapTop) {
     }
   }
 
-  if (Number.isFinite(mapLeft) && Number.isFinite(mapTop)) {
+  if (
+    ENABLE_CONSTELLATION_LINES &&
+    Number.isFinite(mapLeft) &&
+    Number.isFinite(mapTop)
+  ) {
     drawConstellationLines(controller, nearest, mapLeft, mapTop);
   }
 }

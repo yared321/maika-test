@@ -110,7 +110,7 @@ function populateMusicSelect() {
   let optionsMarkup = "";
   for (let i = 0; i < musicData.length; i += 1) {
     const song = musicData[i];
-    optionsMarkup += `<option value="${i}">${escapeHtml(song.title)}</option>`;
+    optionsMarkup += `<option value="${i}">${escapeHtml(formatTrackOptionLabel(song))}</option>`;
   }
 
   select.innerHTML =
@@ -141,6 +141,14 @@ function normalizeGenres(song) {
   return [];
 }
 
+/** Dropdown label: title plus genre(s) in brackets when present. */
+function formatTrackOptionLabel(song) {
+  const title = typeof song?.title === "string" ? song.title : "";
+  const genres = normalizeGenres(song);
+  if (!genres.length) return title;
+  return `${title} (${genres.join(", ")})`;
+}
+
 /**
  * Turns optional `image` from music.json into a browser URL (absolute https, site-root
  * `/demo/...`, or legacy `site/demo/...` paths from the repo layout).
@@ -161,23 +169,35 @@ function resolveTrackImageUrl(song) {
   }
 }
 
+function getMusicArtSlot() {
+  return document.getElementById("music-art-slot");
+}
+
 function clearCoverArt() {
   const img = document.getElementById("music-cover-art");
   const wrap = document.getElementById("music-cover-wrap");
+  const slot = getMusicArtSlot();
   if (img) {
     img.onerror = null;
     img.hidden = true;
     img.removeAttribute("src");
     img.alt = "";
   }
-  if (wrap) wrap.classList.add("music-player__cover-wrap--empty");
+  if (wrap) {
+    wrap.classList.add("music-player__cover-wrap--empty");
+    wrap.setAttribute("aria-hidden", "true");
+  }
+  slot?.classList.remove("is-showing-cover");
 }
 
-function updateCoverArt(song) {
+/** Preload cover for the selected track; shown in the art slot only after playback starts. */
+function stageCoverArt(song) {
   const img = document.getElementById("music-cover-art");
   const wrap = document.getElementById("music-cover-wrap");
+  const slot = getMusicArtSlot();
   if (!img || !wrap) return;
 
+  slot?.classList.remove("is-showing-cover");
   const url = resolveTrackImageUrl(song);
   if (!url) {
     clearCoverArt();
@@ -185,13 +205,28 @@ function updateCoverArt(song) {
   }
 
   wrap.classList.remove("music-player__cover-wrap--empty");
+  wrap.setAttribute("aria-hidden", "true");
   img.alt = song?.title ? `Cover art for ${song.title}` : "";
-  img.hidden = false;
+  img.hidden = true;
   img.onerror = () => {
     img.onerror = null;
     clearCoverArt();
   };
   img.src = url;
+}
+
+function revealCoverArtInSlot() {
+  const img = document.getElementById("music-cover-art");
+  const wrap = document.getElementById("music-cover-wrap");
+  const slot = getMusicArtSlot();
+  if (!img || !wrap || !slot) return;
+  if (wrap.classList.contains("music-player__cover-wrap--empty") || !img.getAttribute("src")) {
+    return;
+  }
+
+  img.hidden = false;
+  wrap.setAttribute("aria-hidden", "false");
+  slot.classList.add("is-showing-cover");
 }
 
 /** Updates visible title row for the picked track. */
@@ -217,7 +252,7 @@ function updateNowPlaying(song) {
       genresEl.hidden = true;
     }
   }
-  updateCoverArt(song);
+  stageCoverArt(song);
 }
 
 /**
@@ -235,7 +270,6 @@ function bindAudioControlsOnce() {
   const nextBtn = document.getElementById("next-btn");
   const progressBar = document.getElementById("progress-bar");
   const currentTimeEl = document.getElementById("current-time");
-  const durationEl = document.getElementById("duration");
   const volumeSlider = document.getElementById("volume-slider");
 
   if (
@@ -245,7 +279,6 @@ function bindAudioControlsOnce() {
     !forwardBtn ||
     !progressBar ||
     !currentTimeEl ||
-    !durationEl ||
     !volumeSlider
   ) {
     return;
@@ -286,6 +319,7 @@ function bindAudioControlsOnce() {
     setDeckPlaying(true);
     setPlayButtonAppearance("♪", "Playing");
     playBtn.disabled = true;
+    revealCoverArtInSlot();
     startSpectrumRenderLoop();
   });
 
@@ -314,7 +348,6 @@ function bindAudioControlsOnce() {
     progressBar.value = String(progress || 0);
     setRangeFillPercent(progressBar, progress);
     currentTimeEl.textContent = formatTime(audio.currentTime);
-    durationEl.textContent = formatTime(audio.duration);
     document.dispatchEvent(
       new CustomEvent(MUSIC_PROGRESS_EVENT, {
         bubbles: true,
@@ -324,10 +357,6 @@ function bindAudioControlsOnce() {
         },
       }),
     );
-  });
-
-  audio.addEventListener("loadedmetadata", () => {
-    durationEl.textContent = formatTime(audio.duration);
   });
 
   // Keep seek interaction code for future use, but disable dragging for now.
@@ -370,7 +399,6 @@ function onMusicSelectChange() {
   const playBtn = document.getElementById("play-pause-btn");
   const progressBar = document.getElementById("progress-bar");
   const currentTimeEl = document.getElementById("current-time");
-  const durationEl = document.getElementById("duration");
 
   if (!select || !audio) return;
 
@@ -391,7 +419,6 @@ function onMusicSelectChange() {
       setRangeFillPercent(progressBar, 0);
     }
     if (currentTimeEl) currentTimeEl.textContent = "0:00";
-    if (durationEl) durationEl.textContent = "0:00";
     if (playBtn) playBtn.disabled = true;
     setPlayButtonAppearance("▶", "Play selected track");
     setDeckPlaying(false);
@@ -429,7 +456,6 @@ function onMusicSelectChange() {
     setRangeFillPercent(progressBar, 0);
   }
   if (currentTimeEl) currentTimeEl.textContent = "0:00";
-  if (durationEl) durationEl.textContent = "0:00";
 
   updateNowPlaying(song);
   void loadWaveformFromUrl(song.url);
@@ -586,7 +612,6 @@ export function resetMusicDemoSession() {
   const playBtn = document.getElementById("play-pause-btn");
   const progressBar = document.getElementById("progress-bar");
   const currentTimeEl = document.getElementById("current-time");
-  const durationEl = document.getElementById("duration");
 
   if (select) {
     select.disabled = false;
@@ -609,7 +634,6 @@ export function resetMusicDemoSession() {
     setRangeFillPercent(progressBar, 0);
   }
   if (currentTimeEl) currentTimeEl.textContent = "0:00";
-  if (durationEl) durationEl.textContent = "0:00";
 
   if (playBtn) {
     setPlayButtonAppearance("▶", "Play selected track");
