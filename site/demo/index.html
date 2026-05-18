@@ -65,12 +65,12 @@
     />
     <link
       rel="stylesheet"
-      href="/demo/css/demo_music_player.css?v=20260515-wave-height-70"
+      href="/demo/css/demo_music_player.css?v=20260515-cover-in-art-slot"
     />
     <link rel="stylesheet" href="/demo/css/demo.css?v=20260505-wizard-steps" />
     <link
       rel="stylesheet"
-      href="/demo/css/demo_emotion_visualization.css?v=20260515-emotion-map-polish-mobile"
+      href="/demo/css/demo_emotion_visualization.css?v=20260515-emotion-tags-no-lines"
     />
     <link
       rel="stylesheet"
@@ -315,40 +315,41 @@
                   >
                     <div class="music-player__banner">
                       <div class="music-player__banner-left">
-                        <button
-                          class="music-player__playfab"
-                          id="play-pause-btn"
-                          type="button"
-                          aria-label="Play or pause"
-                          disabled
-                        >
-                          <span
-                            class="music-player__playfab-icon"
-                            id="play-pause-glyph"
-                            aria-hidden="true"
-                            >▶</span
+                        <div class="music-player__art-slot" id="music-art-slot">
+                          <button
+                            class="music-player__playfab"
+                            id="play-pause-btn"
+                            type="button"
+                            aria-label="Play or pause"
+                            disabled
                           >
-                        </button>
+                            <span
+                              class="music-player__playfab-icon"
+                              id="play-pause-glyph"
+                              aria-hidden="true"
+                              >▶</span
+                            >
+                          </button>
+                          <div
+                            class="music-player__cover-wrap music-player__cover-wrap--empty"
+                            id="music-cover-wrap"
+                            aria-hidden="true"
+                          >
+                            <img
+                              id="music-cover-art"
+                              class="music-player__cover"
+                              alt=""
+                              width="64"
+                              height="64"
+                              decoding="async"
+                              hidden
+                            />
+                          </div>
+                        </div>
                         <div class="song-info">
                           <h2 class="song-info__title" id="title">Song Title</h2>
                           <p class="song-info__artist" id="artist" hidden></p>
                           <div class="song-info__genres" id="genre-tags" hidden></div>
-                        </div>
-                      </div>
-                      <div class="music-player__banner-right">
-                        <div
-                          class="music-player__cover-wrap music-player__cover-wrap--empty"
-                          id="music-cover-wrap"
-                        >
-                          <img
-                            id="music-cover-art"
-                            class="music-player__cover"
-                            alt=""
-                            width="160"
-                            height="160"
-                            decoding="async"
-                            hidden
-                          />
                         </div>
                       </div>
                     </div>
@@ -383,11 +384,6 @@
                         <span
                           class="music-player__time-tag music-player__time-tag--current"
                           id="current-time"
-                          >0:00</span
-                        >
-                        <span
-                          class="music-player__time-tag music-player__time-tag--total"
-                          id="duration"
                           >0:00</span
                         >
                       </div>
@@ -865,6 +861,7 @@
                         viewBox="0 0 100 100"
                         preserveAspectRatio="none"
                         aria-hidden="true"
+                        hidden
                       >
                         <g id="emotion-constellation-links"></g>
                         <g id="emotion-constellation-stars"></g>
@@ -893,11 +890,6 @@
                       <span class="emotion-axis-label axis-bottom"
                         >Relaxation</span
                       >
-                      <span class="emotion-axis-label axis-left">Negative</span>
-                      <span class="emotion-axis-label axis-right"
-                        >Positive</span
-                      >
-
                       <div
                         class="emotion-point"
                         id="emotion-map-point"
@@ -908,6 +900,15 @@
                         id="emotion-mode-layer"
                         aria-live="polite"
                       ></div>
+                    </div>
+                    <div
+                      class="emotion-map-valence-legend"
+                      aria-hidden="false"
+                    >
+                      <span class="emotion-axis-label axis-left">Negative</span>
+                      <span class="emotion-axis-label axis-right"
+                        >Positive</span
+                      >
                     </div>
                   </div>
 

@@ -84,7 +84,29 @@
 } */
 
 .emotion-map-wrap {
+  position: relative;
   margin: 0.2rem 0 0.9rem;
+  --axis-label-outset: 1.1rem;
+}
+
+/* Valence labels sit outside the map on desktop; below the map on mobile. */
+.emotion-map-valence-legend {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.emotion-map-valence-legend .emotion-axis-label.axis-left {
+  left: calc(-1 * var(--axis-label-outset));
+  top: 50%;
+  transform: translate(-100%, -50%);
+}
+
+.emotion-map-valence-legend .emotion-axis-label.axis-right {
+  right: calc(-1 * var(--axis-label-outset));
+  top: 50%;
+  transform: translate(100%, -50%);
 }
 
 .emotion-simple {
@@ -187,7 +209,6 @@
     linear-gradient(170deg, rgba(8, 14, 30, 0.9), rgba(15, 10, 35, 0.92));
   isolation: isolate;
   --q-accent: rgba(223, 122, 254, 0.2);
-  --axis-label-outset: 1.1rem;
   transform: translateZ(0);
 }
 
@@ -229,6 +250,11 @@
   animation: map-grid-breathe 7.5s ease-in-out infinite;
   z-index: 0;
   will-change: opacity;
+}
+
+/* Constellation lines/stars off by default (see ENABLE_CONSTELLATION_LINES). */
+.emotion-constellation {
+  display: none !important;
 }
 
 .emotion-constellation {
@@ -365,18 +391,6 @@
   bottom: calc(-1 * var(--axis-label-outset));
   left: 50%;
   transform: translateX(-50%);
-}
-
-.emotion-axis-label.axis-left {
-  left: calc(-1 * var(--axis-label-outset));
-  top: 50%;
-  transform: translate(-100%, -50%);
-}
-
-.emotion-axis-label.axis-right {
-  right: calc(-1 * var(--axis-label-outset));
-  top: 50%;
-  transform: translate(100%, -50%);
 }
 
 .emotion-point {
@@ -756,8 +770,46 @@
     grid-template-columns: 1fr;
   }
 
+  .emotion-map-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.42rem;
+    --axis-label-outset: 0.32rem;
+  }
+
+  /* Activation/Relaxation stay on the map; valence labels move below it. */
+  .emotion-axis-label.axis-top {
+    top: 0.2rem;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .emotion-axis-label.axis-bottom {
+    bottom: 0.2rem;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .emotion-map-valence-legend {
+    position: static;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.12rem;
+  }
+
+  .emotion-map-valence-legend .emotion-axis-label.axis-left,
+  .emotion-map-valence-legend .emotion-axis-label.axis-right {
+    position: static;
+    transform: none;
+    max-width: none;
+    flex: 0 1 auto;
+  }
+
   .emotion-axis-label {
     font-size: 0.68rem;
+    padding: 0.2rem 0.48rem;
   }
 
   .emotion-mode-tag {
