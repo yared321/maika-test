@@ -180,7 +180,7 @@
                     </div>
                     <article class="demo-landing__step-card">
                       <p class="demo-landing__step-title">Step 2</p>
-                      <p class="demo-landing__step-desc">Listen to one track</p>
+                      <p class="demo-landing__step-desc">Baseline face scan</p>
                     </article>
                   </li>
                   <li class="demo-landing__step">
@@ -190,7 +190,7 @@
                     </div>
                     <article class="demo-landing__step-card">
                       <p class="demo-landing__step-title">Step 3</p>
-                      <p class="demo-landing__step-desc">Scan your face</p>
+                      <p class="demo-landing__step-desc">Listen to one track</p>
                     </article>
                   </li>
                   <li class="demo-landing__step">
@@ -200,6 +200,16 @@
                     </div>
                     <article class="demo-landing__step-card">
                       <p class="demo-landing__step-title">Step 4</p>
+                      <p class="demo-landing__step-desc">Scan your face</p>
+                    </article>
+                  </li>
+                  <li class="demo-landing__step">
+                    <div class="demo-landing__step-indicator">
+                      <span class="demo-landing__step-index">5</span>
+                      <span class="demo-landing__step-connector"></span>
+                    </div>
+                    <article class="demo-landing__step-card">
+                      <p class="demo-landing__step-title">Step 5</p>
                       <p class="demo-landing__step-desc">See the result</p>
                     </article>
                   </li>
@@ -247,7 +257,7 @@
                 <p class="wizard-kicker">Maika demo</p>
                 <p class="wizard-progress">
                   <span data-step-current>1</span> /
-                  <span data-step-total>5</span>
+                  <span data-step-total>6</span>
                 </p>
               </div>
               <!-- First section - Age and Gender -->
@@ -287,8 +297,17 @@
                 </div>
               </section>
 
-              <!-- Second section listen to music -->
+              <!-- Second section scan face before music -->
               <section class="wizard-step" data-step="2" aria-hidden="true">
+                <div
+                  class="field-grid field-grid-single"
+                  id="face-scan-host-pre"
+                >
+                </div>
+              </section>
+
+              <!-- Third section listen to music -->
+              <section class="wizard-step" data-step="3" aria-hidden="true">
                 <div class="music-player">
                   <div class="music-player__field">
                     <label class="music-player__label" for="music-select"
@@ -452,12 +471,16 @@
                 </div>
               </section>
 
-              <!-- Third section scan face -->
-              <section class="wizard-step" data-step="3" aria-hidden="true">
-                <div class="field-grid field-grid-single">
+              <!-- Fourth section scan face -->
+              <section class="wizard-step" data-step="4" aria-hidden="true">
+                <div
+                  class="field-grid field-grid-single"
+                  id="face-scan-host-post"
+                >
                   <div class="app">
                     <header class="header">
-                      <h2>Face scan</h2>
+                      <h2 id="face-scan-title">Face scan</h2>
+                      <p class="muted block face-scan-context" id="face-scan-subtitle" hidden></p>
                     </header>
 
                     <!-- Face scan instruction panel section -->
@@ -741,8 +764,8 @@
                 </div>
               </section>
 
-              <!-- Fourth section, user will select their arousal lever after listening to music using slider -->
-              <section class="wizard-step" data-step="4" aria-hidden="true">
+              <!-- Fifth section, user will select their arousal lever after listening to music using slider -->
+              <section class="wizard-step" data-step="5" aria-hidden="true">
                 <div class="valence-card">
                   <!-- <p class="valence-kicker">Self-assessment</p> -->
                   <h3 class="valence-title">How do you feel right now?</h3>
@@ -776,8 +799,8 @@
                 </div>
               </section>
 
-              <!-- Fifth section, score and user arousal lever will be visualized here -->
-              <section class="wizard-step" data-step="5" aria-hidden="true">
+              <!-- Sixth section, score and user arousal lever will be visualized here -->
+              <section class="wizard-step" data-step="6" aria-hidden="true">
                 <div class="emotion-card">
                   <div class="emotion-header">
                     <!-- <p class="emotion-kicker">Emotion map</p> -->

@@ -4,6 +4,17 @@ import {
   resolveEndpoint,
 } from "../service/service.js";
 
+/**
+ * Read arousal from an API assessment payload.
+ * @param {unknown} data
+ * @returns {number | null}
+ */
+function extractArousalFromResult(data) {
+  if (!data || typeof data !== "object") return null;
+  const arousal = Number(data.arousal);
+  return Number.isFinite(arousal) ? arousal : null;
+}
+
 const UPLOAD_STATUS = {
   idle: "Ready to upload and calculate score",
   uploading: "Uploading video and calculating score…",
@@ -92,7 +103,7 @@ function setUploadUiState(dom, state, mode, label) {
  */
 export function syncFaceStepNextGate(dom, state) {
   if (!dom.nextButton || dom.nextButton.hidden) return;
-  if (state.currentStep !== 2) {
+  if (state.currentStep !== 1 && state.currentStep !== 3) {
     dom.nextButton.disabled = false;
     return;
   }
@@ -209,6 +220,9 @@ export async function startFaceUpload(dom, state, setWizardError) {
     return;
   }
 
+  const scanPhase =
+    state.currentStep === 1 ? "baseline" : state.currentStep === 3 ? "post" : null;
+
   state.upload.isInFlight = true;
   setWizardError(dom, "");
   setUploadUiState(dom, state, "uploading", UPLOAD_STATUS.uploading);
@@ -230,6 +244,12 @@ export async function startFaceUpload(dom, state, setWizardError) {
       syncRecordAgainButton(dom, false);
       if (uploadResult.data && typeof uploadResult.data === "object") {
         state.assessment.latestResult = uploadResult.data;
+        const arousal = extractArousalFromResult(uploadResult.data);
+        if (scanPhase === "baseline") {
+          state.assessment.baselineArousal = arousal;
+        } else if (scanPhase === "post") {
+          state.assessment.postArousal = arousal;
+        }
       }
       state.upload.pendingBlob = null;
       state.upload.pendingMime = "";
