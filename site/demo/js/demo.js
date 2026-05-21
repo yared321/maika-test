@@ -91,7 +91,24 @@ function getDomReferences() {
     uploadStatusLabel: wizardForm?.querySelector("#upload-status-label"),
     uploadProgressTrack: wizardForm?.querySelector("#upload-progress-track"),
     btnRecordAgain: wizardForm?.querySelector("#btn-record-again"),
+    faceScanHostPre: wizardForm?.querySelector("#face-scan-host-pre"),
+    faceScanHostPost: wizardForm?.querySelector("#face-scan-host-post"),
+    faceScanApp: wizardForm?.querySelector("#face-scan-host-post .app"),
+    faceScanTitle: wizardForm?.querySelector("#face-scan-title"),
+    faceScanSubtitle: wizardForm?.querySelector("#face-scan-subtitle"),
   };
+}
+
+/**
+ * Final map arousal from baseline (a1) and post-music (a2): (a2 - a1) / 2.
+ * @param {Record<string, any>} state
+ * @returns {number | null}
+ */
+function computeMusicResponseArousal(state) {
+  const a1 = state.assessment.baselineArousal;
+  const a2 = state.assessment.postArousal;
+  if (!Number.isFinite(a1) || !Number.isFinite(a2)) return null;
+  return (a2 - a1) / 2;
 }
 
 /**
@@ -117,6 +134,8 @@ function createInitialState(stepCount) {
     },
     assessment: {
       latestResult: null,
+      baselineArousal: null,
+      postArousal: null,
     },
     emotionViz: {
       xAxisValencePercent: VALENCE_X_AXIS_DEFAULT,
@@ -130,10 +149,11 @@ function createInitialState(stepCount) {
     },
     nextButtonLabels: new Map([
       [0, "Listen Music"],
-      [1, "Proceed to Face Scan"],
-      [2, "Continue"],
-      [3, "See Results"],
-      [4, "Done"],
+      [1, "Proceed to Music"],
+      [2, "Proceed to Face Scan"],
+      [3, "Continue"],
+      [4, "See Results"],
+      [5, "Done"],
     ]),
   };
 }
@@ -146,7 +166,7 @@ function createControllers(dom, state) {
   const score = ScoreVisualizationController.create({
     root: dom.wizardForm,
     getValence: () => state.emotionViz.xAxisValencePercent,
-    getArousal: () => state.assessment.latestResult?.arousal ?? null,
+    getArousal: () => computeMusicResponseArousal(state),
   });
 
   const valence = new ValenceSliderController({
@@ -192,8 +212,8 @@ function bindEvents(dom, state, controllers) {
   dom.ageInput?.addEventListener("change", () => validateAgeField(dom));
 
   document.addEventListener(MUSIC_ENDED_EVENT, () => {
-    if (state.currentStep === 1 && state.musicGate.requirementMet) {
-      updateStep(dom, state, 2);
+    if (state.currentStep === 2 && state.musicGate.requirementMet) {
+      updateStep(dom, state, 3);
     }
   });
 
@@ -274,7 +294,7 @@ function bindEvents(dom, state, controllers) {
  */
 function updateStep(dom, state, targetStep, options = {}) {
   // Leaving the music step: fade volume, then clear player / unlock picker (once, after fade).
-  if (state.currentStep === 1 && targetStep === 0) {
+  if (state.currentStep === 2 && targetStep <= 1) {
     void stopMusicPlayback({
       fadeOutMs: MUSIC_FADE_MS_ON_BACK_TO_DEMOGRAPHIC,
     }).then(() => {
@@ -283,18 +303,30 @@ function updateStep(dom, state, targetStep, options = {}) {
   }
 
   // Demographics → music: cancel stray fade-from-back and reset player so picker works.
-  if (state.currentStep === 0 && targetStep === 1) {
+  if (state.currentStep <= 1 && targetStep === 2) {
     interruptMusicFadeOut();
     resetMusicDemoSession();
   }
 
   if (targetStep === 1) {
+    moveFaceScanApp(dom, "pre");
     saveDemographics(dom, state);
+  }
+
+  if (targetStep === 2) {
     state.musicGate.listenedSeconds = 0;
     state.musicGate.requirementMet = false;
   }
 
-  if (targetStep === 4) {
+  if (targetStep === 3) {
+    moveFaceScanApp(dom, "post");
+    resetUploadState(state);
+    clearRecordedPreview(dom, state);
+    syncRecordAgainButton(dom, false);
+    restartFaceScanForNewRecording();
+  }
+
+  if (targetStep === 5) {
     options.controllers?.score?.render?.();
   }
 
@@ -313,7 +345,7 @@ function updateStep(dom, state, targetStep, options = {}) {
   }
   if (dom.backButton) {
     // Hide Back from face-scan step onward (camera, slider, final result).
-    dom.backButton.hidden = targetStep >= 2;
+    dom.backButton.hidden = targetStep >= 3;
   }
 
   syncFaceStepNextGate(dom, state);
@@ -327,9 +359,37 @@ function updateStep(dom, state, targetStep, options = {}) {
   focusable?.focus();
 }
 
+function moveFaceScanApp(dom, targetHost) {
+  if (!dom.faceScanApp) return;
+  const host = targetHost === "pre" ? dom.faceScanHostPre : dom.faceScanHostPost;
+  if (!host) return;
+
+  if (dom.faceScanTitle) {
+    if (targetHost === "pre") {
+      dom.faceScanTitle.textContent = "Baseline face scan";
+      if (dom.faceScanSubtitle) {
+        dom.faceScanSubtitle.textContent =
+          "Your baseline scan before listening to music.";
+        dom.faceScanSubtitle.hidden = false;
+      }
+    } else {
+      dom.faceScanTitle.textContent = "Face scan";
+      if (dom.faceScanSubtitle) {
+        dom.faceScanSubtitle.textContent =
+          "Scan again after listening to music.";
+        dom.faceScanSubtitle.hidden = false;
+      }
+    }
+  }
+
+  if (dom.faceScanApp.parentElement !== host) {
+    host.appendChild(dom.faceScanApp);
+  }
+}
+
 function syncMusicStepNextGate(dom, state) {
   if (!dom.nextButton || dom.nextButton.hidden) return;
-  if (state.currentStep !== 1) return;
+  if (state.currentStep !== 2) return;
   const min = state.musicGate.minimumListenSeconds;
   const listened = Math.min(min, Math.floor(state.musicGate.listenedSeconds));
   const met = state.musicGate.requirementMet;
@@ -381,7 +441,7 @@ function validateCurrentStep(dom, state) {
  * Advances steps, triggers upload, or returns to landing as appropriate.
  */
 async function handleNextClick(dom, state, controllers) {
-  if (state.currentStep === 1 && !state.musicGate.requirementMet) {
+  if (state.currentStep === 2 && !state.musicGate.requirementMet) {
     syncMusicStepNextGate(dom, state);
     return;
   }
@@ -391,13 +451,13 @@ async function handleNextClick(dom, state, controllers) {
     return;
   }
 
-  if (state.currentStep === 2) {
+  if (state.currentStep === 1 || state.currentStep === 3) {
     if (state.upload.isInFlight) {
       setWizardError(dom, "Uploading video and calculating score. Please wait.");
       return;
     }
     if (state.upload.completed) {
-      updateStep(dom, state, 3);
+      updateStep(dom, state, state.currentStep + 1);
       return;
     }
     if (state.upload.pendingBlob) {
@@ -430,6 +490,7 @@ function returnToLandingPage(dom, state, controllers) {
     resetMusicDemoSession();
   });
   resetFaceScanFlowForLanding();
+  moveFaceScanApp(dom, "post");
   resetUploadState(state);
   clearRecordedPreview(dom, state);
 
@@ -446,8 +507,6 @@ function returnToLandingPage(dom, state, controllers) {
     controllers.valence.setValue(VALENCE_X_AXIS_DEFAULT);
   }
 
-  // Clear score visualization
-  state.assessment.latestResult = null;
   if (controllers.score) {
     controllers.score.render();
   }
