@@ -27,6 +27,7 @@ import {
   restartFaceScanForNewRecording,
   setFaceScanConsentRequired,
 } from "./controller/face_scan_flow_controller.js";
+import { MUSIC_HISTOGRAM_WINDOW_SEC } from "./controller/music_waveform_renderer.js";
 import { syncWizardNextButton } from "./controller/wizard_nav_controller.js";
 import {
   placeValenceInScanIntro,
@@ -35,8 +36,10 @@ import {
 
 var MUSIC_FADE_MS_ON_BACK_TO_DEMOGRAPHIC = 3000;
 const VALENCE_X_AXIS_DEFAULT = 0;
-/** Minimum music listening time before post-music face scan. */
-const MUSIC_LISTEN_MIN_SECONDS = 30;
+/** Earliest manual proceed to face scan (button enabled). */
+const MUSIC_PROCEED_MIN_SECONDS = 30;
+/** Auto-advance to face scan after one minute of listening. */
+const MUSIC_AUTO_ADVANCE_SECONDS = MUSIC_HISTOGRAM_WINDOW_SEC;
 
 /** Wizard steps that hide Next (post-music face scan auto-advances after upload). */
 const AUTO_ADVANCE_STEPS = new Set([2]);
@@ -136,9 +139,11 @@ function createInitialState(stepCount) {
       postScanValenceConfirmed: false,
     },
     musicGate: {
-      minimumListenSeconds: MUSIC_LISTEN_MIN_SECONDS,
+      proceedMinSeconds: MUSIC_PROCEED_MIN_SECONDS,
+      autoAdvanceSeconds: MUSIC_AUTO_ADVANCE_SECONDS,
       listenedSeconds: 0,
       requirementMet: false,
+      autoAdvanced: false,
     },
     nextButtonLabels: new Map([
       [0, "Continue"],
@@ -198,12 +203,23 @@ function initializeUi(dom, state) {
 function bindEvents(dom, state, controllers) {
   document.addEventListener(MUSIC_PROGRESS_EVENT, (ev) => {
     const seconds = Number(ev?.detail?.currentTime) || 0;
-    if (!state.musicGate.requirementMet) {
-      state.musicGate.listenedSeconds = Math.max(state.musicGate.listenedSeconds, seconds);
-      if (state.musicGate.listenedSeconds >= state.musicGate.minimumListenSeconds) {
-        state.musicGate.requirementMet = true;
-        syncWizardNextButton(dom, state);
-      }
+    state.musicGate.listenedSeconds = Math.max(state.musicGate.listenedSeconds, seconds);
+
+    if (
+      !state.musicGate.requirementMet &&
+      state.musicGate.listenedSeconds >= state.musicGate.proceedMinSeconds
+    ) {
+      state.musicGate.requirementMet = true;
+      syncWizardNextButton(dom, state);
+    }
+
+    if (
+      state.currentStep === 1 &&
+      !state.musicGate.autoAdvanced &&
+      state.musicGate.listenedSeconds >= state.musicGate.autoAdvanceSeconds
+    ) {
+      state.musicGate.autoAdvanced = true;
+      updateStep(dom, state, 2, { controllers });
     }
   });
 
@@ -318,6 +334,7 @@ function updateStep(dom, state, targetStep, options = {}) {
   if (targetStep === 1) {
     state.musicGate.listenedSeconds = 0;
     state.musicGate.requirementMet = false;
+    state.musicGate.autoAdvanced = false;
     globalThis.requestAnimationFrame(function () {
       globalThis.requestAnimationFrame(function () {
         void autoplayRandomMusicTrack();
@@ -459,7 +476,7 @@ async function handleNextClick(dom, state, controllers) {
     if (!state.musicGate.requirementMet) {
       const remaining = Math.max(
         0,
-        Math.ceil(state.musicGate.minimumListenSeconds - state.musicGate.listenedSeconds),
+        Math.ceil(state.musicGate.proceedMinSeconds - state.musicGate.listenedSeconds),
       );
       setWizardError(
         dom,
