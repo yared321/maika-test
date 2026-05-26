@@ -6,6 +6,8 @@
 
 const DISPLAY_BARS = 320;
 const SYNTH_BARS = 220;
+/** Visible histogram window: first minute of playback, then flow continues in background. */
+export const MUSIC_HISTOGRAM_WINDOW_SEC = 60;
 
 let canvasEl = null;
 let ctx2d = null;
@@ -81,8 +83,30 @@ function getTrackMonoSamples(buffer) {
  * Frequency-weighted "tone intensity" per timeline bucket.
  * Uses both amplitude and sample-to-sample delta energy (high-frequency activity).
  */
+function sliceMonoToWindow(mono, sampleRate, windowSec) {
+  const maxSamples = Math.floor(sampleRate * windowSec);
+  if (!Number.isFinite(maxSamples) || maxSamples <= 0 || mono.length <= maxSamples) {
+    return mono;
+  }
+  return mono.subarray(0, maxSamples);
+}
+
+function sliceBarsToWindow(values, trackDurationSec) {
+  if (!values?.length) return values;
+  const duration = Number(trackDurationSec);
+  if (!Number.isFinite(duration) || duration <= MUSIC_HISTOGRAM_WINDOW_SEC) {
+    return values;
+  }
+  const keep = Math.max(
+    1,
+    Math.floor((values.length * MUSIC_HISTOGRAM_WINDOW_SEC) / duration),
+  );
+  return values.subarray(0, keep);
+}
+
 function computeFrequencyWeightedBars(buffer, nBars) {
-  const mono = getTrackMonoSamples(buffer);
+  const monoFull = getTrackMonoSamples(buffer);
+  const mono = sliceMonoToWindow(monoFull, buffer.sampleRate, MUSIC_HISTOGRAM_WINDOW_SEC);
   const out = new Float32Array(nBars);
   const hop = Math.max(64, Math.floor(mono.length / nBars));
 
@@ -138,11 +162,10 @@ function drawSpectrumFrame() {
   const barW = Math.max(1, slot * 0.78);
   const gap = slot - barW;
 
-  const d = audio?.duration;
   const ct = audio?.currentTime;
   const progress =
-    audio && Number.isFinite(d) && d > 0 && Number.isFinite(ct)
-      ? Math.min(1, Math.max(0, ct / d))
+    audio && Number.isFinite(ct)
+      ? Math.min(1, Math.max(0, ct / MUSIC_HISTOGRAM_WINDOW_SEC))
       : 0;
 
   for (let i = 0; i < n; i += 1) {
@@ -244,7 +267,9 @@ export async function loadWaveformFromUrl(url) {
     try {
       const buf = await ctx.decodeAudioData(arr.slice(0));
       if (gen !== loadGeneration) return;
-      barValues = computeFrequencyWeightedBars(buf, DISPLAY_BARS);
+      let bars = computeFrequencyWeightedBars(buf, DISPLAY_BARS);
+      bars = sliceBarsToWindow(bars, buf.duration);
+      barValues = bars;
       drawSpectrumFrame();
     } finally {
       await ctx.close().catch(() => {});

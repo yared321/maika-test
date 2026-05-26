@@ -43,6 +43,8 @@ var faceModelsReady = false;
 var faceModelsLoadFailed = false;
 var modelsLoadPromise = null;
 var cameraDOM = null;
+/** When false, consent UI is hidden and camera may start without checkbox (second scan). */
+var faceScanConsentRequired = true;
 
 /** Active camera + recording refs after successful init (for wizard landing reset). */
 var faceScanFlowHandles = {
@@ -58,6 +60,7 @@ function getDomReferences() {
   return {
     panelInstructions: H.byId("panel-instructions"),
     panelScan: H.byId("panel-scan"),
+    scanIntro: H.byId("scan-intro"),
     panelResult: H.byId("panel-result"),
     preview: H.byId("preview"),
     placementStatus: H.byId("placement-status"),
@@ -92,10 +95,25 @@ function getDomReferences() {
 }
 
 /**
+ * Show or hide camera consent UI (first scan only).
+ * @param {boolean} required
+ */
+export function setFaceScanConsentRequired(required) {
+  faceScanConsentRequired = required !== false;
+  if (!cameraDOM) return;
+  var consentBox = H.byId("face-consent-box");
+  if (consentBox) {
+    consentBox.classList.toggle("hidden", !faceScanConsentRequired);
+  }
+  syncStartButtonAvailability();
+}
+
+/**
  * Return whether the user has agreed to face scan consent.
  * @returns {boolean}
  */
 function hasFaceScanConsent() {
+  if (!faceScanConsentRequired) return true;
   return !!(
     cameraDOM.faceConsentCheckbox && cameraDOM.faceConsentCheckbox.checked
   );
@@ -107,7 +125,9 @@ function hasFaceScanConsent() {
 function syncStartButtonAvailability() {
   if (!cameraDOM.btnStart) return;
   var canStart =
-    faceModelsReady && !faceModelsLoadFailed && hasFaceScanConsent();
+    faceModelsReady &&
+    !faceModelsLoadFailed &&
+    (hasFaceScanConsent() || !faceScanConsentRequired);
   cameraDOM.btnStart.disabled = !canStart;
 }
 
@@ -331,6 +351,22 @@ function bootstrapModels() {
 }
 
 /**
+ * Open the scan panel and request camera access (shared by manual and auto start).
+ * @param {object} camera
+ */
+function openScanPanelAndRequestCamera(camera) {
+  if (cameraDOM.btnStart) cameraDOM.btnStart.disabled = true;
+  cameraDOM.panelInstructions.classList.add("hidden");
+  cameraDOM.panelScan.classList.remove("hidden");
+  if (cameraDOM.scanIntro) {
+    cameraDOM.scanIntro.classList.remove("hidden");
+    cameraDOM.scanIntro.hidden = false;
+  }
+  hideError();
+  waitForModelsThenOpenCamera(camera);
+}
+
+/**
  * Start the camera flow from the intro panel after validating consent.
  */
 function startCameraFromIntro(camera) {
@@ -342,11 +378,24 @@ function startCameraFromIntro(camera) {
     syncStartButtonAvailability();
     return;
   }
-  cameraDOM.btnStart.disabled = true;
-  cameraDOM.panelInstructions.classList.add("hidden");
-  cameraDOM.panelScan.classList.remove("hidden");
-  hideError();
-  waitForModelsThenOpenCamera(camera);
+  openScanPanelAndRequestCamera(camera);
+}
+
+/**
+ * Skip intro/consent and start the camera immediately (second scan after music).
+ */
+export function autoStartFaceScanDirectly() {
+  if (!cameraDOM || !faceScanFlowHandles.camera) return;
+  if (!faceModelsLoadFailed && (faceModelsReady || modelsLoadPromise)) {
+    openScanPanelAndRequestCamera(faceScanFlowHandles.camera);
+    return;
+  }
+  bootstrapModels()
+    .catch(function () {})
+    .finally(function () {
+      if (!faceScanFlowHandles.camera || faceModelsLoadFailed) return;
+      openScanPanelAndRequestCamera(faceScanFlowHandles.camera);
+    });
 }
 
 /**
@@ -459,6 +508,7 @@ function applyRecordingOutcomeHint(baseTxt, uploadResult, endpointConfigured) {
  */
 export function resetFaceScanFlowForLanding() {
   if (!cameraDOM) return;
+  setFaceScanConsentRequired(true);
   resetUiToStart(faceScanFlowHandles.camera, faceScanFlowHandles.recording);
   if (cameraDOM.faceConsentCheckbox) {
     cameraDOM.faceConsentCheckbox.checked = false;
@@ -474,6 +524,9 @@ export function restartFaceScanForNewRecording() {
   if (!cameraDOM) return;
   resetUiToStart(faceScanFlowHandles.camera, faceScanFlowHandles.recording);
   syncStartButtonAvailability();
+  if (faceScanFlowHandles.camera && !faceScanConsentRequired) {
+    autoStartFaceScanDirectly();
+  }
 }
 
 /**
@@ -486,6 +539,10 @@ function resetUiToStart(camera, recording) {
   cameraDOM.panelInstructions.classList.remove("hidden");
   cameraDOM.panelScan.classList.add("hidden");
   cameraDOM.panelResult.classList.add("hidden");
+  if (cameraDOM.scanIntro) {
+    cameraDOM.scanIntro.classList.add("hidden");
+    cameraDOM.scanIntro.hidden = true;
+  }
   if (camera) camera.hideScanCameraStates();
   cameraDOM.overlayCountdown.hidden = true;
   cameraDOM.overlayCountdown.classList.add("hidden");
@@ -630,6 +687,10 @@ function bindFaceScanEvents(camera, recording) {
     if (camera) camera.hideScanCameraStates();
     if (camera) camera.stopStream();
     cameraDOM.panelScan.classList.add("hidden");
+    if (cameraDOM.scanIntro) {
+      cameraDOM.scanIntro.classList.add("hidden");
+      cameraDOM.scanIntro.hidden = true;
+    }
     cameraDOM.panelInstructions.classList.remove("hidden");
     hideError();
     syncStartButtonAvailability();

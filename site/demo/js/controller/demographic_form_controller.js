@@ -1,40 +1,14 @@
-const AGE_MIN = 12;
-const AGE_MAX = 100;
+/** Placeholder values required by the upload API (discarded server-side). */
+export const DEMO_DEFAULT_AGE = "30";
+export const DEMO_DEFAULT_GENDER = "prefer-not-to-say";
 
 /**
- * Save demographic input values from the form into the current state.
- * Trims values to remove any accidental whitespace.
+ * Apply fixed demographic placeholders used for every face-scan upload.
+ * @param {Record<string, any>} state
  */
-export function saveDemographics(dom, state) {
-  state.demographics.age = String(
-    dom.wizardForm?.querySelector("[name=age]")?.value || "",
-  ).trim();
-  state.demographics.gender = String(
-    dom.wizardForm?.querySelector("[name=gender]")?.value || "",
-  ).trim();
+export function applyDefaultDemographics(state) {
+  state.demographics.age = DEMO_DEFAULT_AGE;
+  state.demographics.gender = DEMO_DEFAULT_GENDER;
 }
 
-/**
- * Validate the age field and set browser validity state if invalid.
- * Ensures entered age is an integer within the allowed range.
- */
-export function validateAgeField(dom) {
-  const ageInput = dom.ageInput;
-  if (!ageInput) return;
-  const raw = String(ageInput.value || "").trim();
-  if (!raw) {
-    ageInput.setCustomValidity("");
-    return;
-  }
-  const value = Number(raw);
-  const isValidInteger = Number.isInteger(value);
-  const isInRange = value >= AGE_MIN && value <= AGE_MAX;
-  if (!isValidInteger || !isInRange) {
-    ageInput.setCustomValidity(
-      `Age must be between ${AGE_MIN} and ${AGE_MAX} (inclusive).`,
-    );
-    return;
-  }
-  ageInput.setCustomValidity("");
-}
 
