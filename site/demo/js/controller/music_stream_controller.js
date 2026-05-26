@@ -23,6 +23,8 @@ let controlsBound = false;
 let selectBound = false;
 let selectionLocked = false;
 let activeFadeRaf = 0;
+/** Bumps when session resets so in-flight autoplay attempts are ignored. */
+let autoplayGeneration = 0;
 /** Resolves the Promise from the current `stopMusicPlayback` fade (if any). */
 let activeFadeResolve = null;
 
@@ -603,7 +605,91 @@ export function stopMusicPlayback(options = {}) {
  * Full demo reset: unlock track picker, clear sources, HUD, and “now playing” labels.
  * Call when returning to landing (e.g. wizard Done) so the next run starts clean.
  */
+/**
+ * Load a track by catalog index (used by guided auto-play; #music-select may be hidden).
+ * @param {number} index
+ * @returns {boolean}
+ */
+export function selectMusicTrackByIndex(index) {
+  const select = getSelect();
+  if (!select || !musicData[Number(index)]) return false;
+  select.value = String(index);
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+  return true;
+}
+
+/** Picks a random catalog track and loads it into the player. */
+export function selectRandomMusicTrack() {
+  if (!musicData.length) return false;
+  const idx = Math.floor(Math.random() * musicData.length);
+  return selectMusicTrackByIndex(idx);
+}
+
+/**
+ * Pick a random track, wait until it can play, then start playback (wizard music step).
+ * @returns {Promise<boolean>}
+ */
+export async function autoplayRandomMusicTrack() {
+  const gen = ++autoplayGeneration;
+  const audio = getMainAudio();
+  if (!audio || !selectRandomMusicTrack()) return false;
+
+  const waitForReady = () =>
+    new Promise((resolve, reject) => {
+      if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        resolve();
+        return;
+      }
+      const timeoutMs = 45000;
+      const timeoutId = globalThis.setTimeout(() => {
+        cleanup();
+        reject(new Error("Track load timed out"));
+      }, timeoutMs);
+      const cleanup = () => {
+        globalThis.clearTimeout(timeoutId);
+        audio.removeEventListener("canplay", onReady);
+        audio.removeEventListener("loadeddata", onReady);
+        audio.removeEventListener("error", onError);
+      };
+      const onReady = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        cleanup();
+        reject(new Error("Track failed to load"));
+      };
+      audio.addEventListener("canplay", onReady, { once: true });
+      audio.addEventListener("loadeddata", onReady, { once: true });
+      audio.addEventListener("error", onError, { once: true });
+    });
+
+  try {
+    await waitForReady();
+    if (gen !== autoplayGeneration) return false;
+    if (!audio.getAttribute("src")) return false;
+
+    await ensureSpectrumFromUserGesture(audio);
+    if (gen !== autoplayGeneration) return false;
+
+    startSpectrumRenderLoop();
+    await audio.play();
+    return true;
+  } catch {
+    if (gen !== autoplayGeneration) return false;
+    const playBtn = document.getElementById("play-pause-btn");
+    if (playBtn && getSelect().value !== "") {
+      setPlayButtonAppearance("▶", "Play selected track");
+      playBtn.disabled = false;
+    }
+    setDeckPlaying(false);
+    stopSpectrumRenderLoop();
+    return false;
+  }
+}
+
 export function resetMusicDemoSession() {
+  autoplayGeneration += 1;
   selectionLocked = false;
 
   const select = getSelect();

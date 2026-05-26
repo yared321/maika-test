@@ -206,6 +206,28 @@
   
   .scan-intro {
     margin-bottom: 1rem;
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .scan-intro-instructions.hidden {
+    display: none !important;
+  }
+
+  .scan-intro--with-valence {
+    gap: 0;
+  }
+
+  .scan-intro .valence-card--in-scan-intro {
+    margin: 0;
+    padding: 0.15rem 0 0;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  #scan-intro.hidden {
+    display: none !important;
   }
   
   .scan-intro-title {

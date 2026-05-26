@@ -12,6 +12,69 @@
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
 }
 
+.valence-card--post-scan {
+  padding: 0.65rem 0.85rem 0.7rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
+}
+
+.valence-card--post-scan .valence-title {
+  font-size: clamp(0.92rem, 2.2vw, 1.1rem);
+}
+
+.valence-card--post-scan .valence-copy {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.valence-card--post-scan .valence-mood {
+  margin: 0.1rem 0 0.35rem;
+  min-height: 2.15rem;
+}
+
+.valence-card--post-scan .valence-emoji {
+  width: clamp(2.35rem, 12vw, 2.85rem);
+  height: clamp(2.35rem, 12vw, 2.85rem);
+  font-size: clamp(1.35rem, 5vw, 1.65rem);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.valence-card--post-scan .valence-label-row {
+  margin-bottom: 0.28rem;
+}
+
+.valence-card--post-scan #valence-value {
+  font-size: 0.84rem;
+}
+
+.valence-card--post-scan .valence-range {
+  height: 6px;
+}
+
+.valence-card--post-scan .valence-range::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+}
+
+.valence-card--post-scan .valence-range::-moz-range-track {
+  height: 6px;
+}
+
+.valence-card--post-scan .valence-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+}
+
+.valence-card--post-scan .valence-ticks {
+  margin-top: 0.32rem;
+  font-size: 0.72rem;
+}
+
+.valence-card--post-scan .valence-hint {
+  margin: 0.32rem 0 0;
+  font-size: 0.78rem;
+}
+
 .valence-kicker {
   margin: 0 0 0.25rem;
   font-size: 0.8rem;
@@ -177,6 +240,10 @@
   }
 
   .valence-card:has(.valence-range:active) .valence-emoji {
+    transform: none;
+  }
+
+  .valence-card--post-scan:has(.valence-range:active) .valence-emoji {
     transform: none;
   }
 }

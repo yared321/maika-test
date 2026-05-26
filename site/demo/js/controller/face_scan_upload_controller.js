@@ -3,6 +3,7 @@ import {
   postRecording,
   resolveEndpoint,
 } from "../service/service.js";
+import { applyDefaultDemographics } from "./demographic_form_controller.js";
 
 /**
  * Read arousal from an API assessment payload.
@@ -102,13 +103,9 @@ function setUploadUiState(dom, state, mode, label) {
  * @param {Record<string, any>} state
  */
 export function syncFaceStepNextGate(dom, state) {
-  if (!dom.nextButton || dom.nextButton.hidden) return;
-  if (state.currentStep !== 1 && state.currentStep !== 3) {
-    dom.nextButton.disabled = false;
-    return;
-  }
+  if (!dom.nextButton || state.currentStep !== 0) return;
   dom.nextButton.disabled =
-    state.upload.isInFlight || (!state.upload.completed && !state.upload.pendingBlob);
+    state.upload.isInFlight || !state.upload.completed;
 }
 
 /**
@@ -184,6 +181,7 @@ export async function startFaceUpload(dom, state, setWizardError) {
     return;
   }
 
+  applyDefaultDemographics(state);
   const age = String(state.demographics.age || "").trim();
   const sex = String(state.demographics.gender || "").trim();
   if (!age || !sex) {
@@ -192,7 +190,7 @@ export async function startFaceUpload(dom, state, setWizardError) {
       state,
       setWizardError,
       UPLOAD_STATUS.error,
-      "Age and gender are required before upload. Please return to step 1 and confirm your details.",
+      "Upload could not start because required profile fields are missing.",
     );
     return;
   }
@@ -221,7 +219,7 @@ export async function startFaceUpload(dom, state, setWizardError) {
   }
 
   const scanPhase =
-    state.currentStep === 1 ? "baseline" : state.currentStep === 3 ? "post" : null;
+    state.currentStep === 0 ? "baseline" : state.currentStep === 2 ? "post" : null;
 
   state.upload.isInFlight = true;
   setWizardError(dom, "");
@@ -255,6 +253,13 @@ export async function startFaceUpload(dom, state, setWizardError) {
       state.upload.pendingMime = "";
       setWizardError(dom, "");
       syncFaceStepNextGate(dom, state);
+      if (scanPhase) {
+        document.dispatchEvent(
+          new CustomEvent("maika-demo:face-upload-complete", {
+            detail: { scanPhase: scanPhase },
+          }),
+        );
+      }
       return;
     }
 

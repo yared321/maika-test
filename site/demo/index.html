@@ -168,9 +168,7 @@
                     </div>
                     <article class="demo-landing__step-card">
                       <p class="demo-landing__step-title">Step 1</p>
-                      <p class="demo-landing__step-desc">
-                        Enter your age and gender
-                      </p>
+                      <p class="demo-landing__step-desc">Baseline face scan</p>
                     </article>
                   </li>
                   <li class="demo-landing__step">
@@ -180,7 +178,7 @@
                     </div>
                     <article class="demo-landing__step-card">
                       <p class="demo-landing__step-title">Step 2</p>
-                      <p class="demo-landing__step-desc">Baseline face scan</p>
+                      <p class="demo-landing__step-desc">Listen for one minute</p>
                     </article>
                   </li>
                   <li class="demo-landing__step">
@@ -190,7 +188,7 @@
                     </div>
                     <article class="demo-landing__step-card">
                       <p class="demo-landing__step-title">Step 3</p>
-                      <p class="demo-landing__step-desc">Listen to one track</p>
+                      <p class="demo-landing__step-desc">Scan your face</p>
                     </article>
                   </li>
                   <li class="demo-landing__step">
@@ -200,16 +198,6 @@
                     </div>
                     <article class="demo-landing__step-card">
                       <p class="demo-landing__step-title">Step 4</p>
-                      <p class="demo-landing__step-desc">Scan your face</p>
-                    </article>
-                  </li>
-                  <li class="demo-landing__step">
-                    <div class="demo-landing__step-indicator">
-                      <span class="demo-landing__step-index">5</span>
-                      <span class="demo-landing__step-connector"></span>
-                    </div>
-                    <article class="demo-landing__step-card">
-                      <p class="demo-landing__step-title">Step 5</p>
                       <p class="demo-landing__step-desc">See the result</p>
                     </article>
                   </li>
@@ -257,48 +245,11 @@
                 <p class="wizard-kicker">Maika demo</p>
                 <p class="wizard-progress">
                   <span data-step-current>1</span> /
-                  <span data-step-total>6</span>
+                  <span data-step-total>4</span>
                 </p>
               </div>
-              <!-- First section - Age and Gender -->
+              <!-- Baseline face scan -->
               <section class="wizard-step is-active" data-step="1">
-                <div class="field-grid">
-                  <div class="age-input-container">
-                    <label for="age">Age</label>
-                    <input
-                      class="age-input"
-                      id="age"
-                      name="age"
-                      type="number"
-                      inputmode="numeric"
-                      min="12"
-                      max="100"
-                      step="1"
-                      required
-                    />
-                  </div>
-                  <div class="gender-select-container">
-                    <label for="gender">Gender</label>
-                    <select
-                      class="input-select"
-                      id="gender"
-                      name="gender"
-                      required
-                    >
-                      <option value="" selected disabled>Select gender</option>
-                      <option value="female">Female</option>
-                      <option value="male">Male</option>
-                      <option value="non-binary">Non-binary</option>
-                      <option value="prefer-not-to-say">
-                        Prefer not to say
-                      </option>
-                    </select>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Second section scan face before music -->
-              <section class="wizard-step" data-step="2" aria-hidden="true">
                 <div
                   class="field-grid field-grid-single"
                   id="face-scan-host-pre"
@@ -306,17 +257,19 @@
                 </div>
               </section>
 
-              <!-- Third section listen to music -->
-              <section class="wizard-step" data-step="3" aria-hidden="true">
+              <!-- Listen to music (track chosen automatically) -->
+              <section class="wizard-step" data-step="2" aria-hidden="true">
                 <div class="music-player">
-                  <div class="music-player__field">
-                    <label class="music-player__label" for="music-select"
-                      >Select a song</label
-                    >
-                    <select id="music-select" class="input-select" name="music">
-                      <option value="">— Choose a track —</option>
-                    </select>
-                  </div>
+                  <select
+                    id="music-select"
+                    class="input-select music-player__select-hidden"
+                    name="music"
+                    hidden
+                    aria-hidden="true"
+                    tabindex="-1"
+                  >
+                    <option value="">—</option>
+                  </select>
 
                   <audio
                     id="audio-player"
@@ -471,8 +424,8 @@
                 </div>
               </section>
 
-              <!-- Fourth section scan face -->
-              <section class="wizard-step" data-step="4" aria-hidden="true">
+              <!-- Post-music face scan -->
+              <section class="wizard-step" data-step="3" aria-hidden="true">
                 <div
                   class="field-grid field-grid-single"
                   id="face-scan-host-post"
@@ -520,14 +473,11 @@
                       </p> -->
                     </section>
 
-                    <!-- Face scan recording panel section -->
-                    <section
-                      class="panel scan hidden"
-                      id="panel-scan"
-                      aria-label="Face recording"
-                    >
-                      <p class="step-label">Face scan</p>
-                      <div class="scan-intro card-inset">
+                    <div class="scan-intro card-inset hidden" id="scan-intro">
+                      <div
+                        class="scan-intro-instructions"
+                        id="scan-intro-instructions"
+                      >
                         <h2 class="scan-intro-title">What to do</h2>
                         <ul class="scan-intro-list">
                           <li>Allow the camera when your browser prompts you.</li>
@@ -536,6 +486,47 @@
                           <li>Hold steady—recording starts automatically after a short countdown.</li>
                         </ul>
                       </div>
+                      <div
+                        class="valence-card valence-card--post-scan hidden"
+                        id="face-scan-valence-panel"
+                        aria-hidden="true"
+                      >
+                        <h3 class="valence-title">How do you feel right now?</h3>
+                        <p class="valence-copy">
+                          Move the slider while you record: left is more unpleasant, right is more pleasant.
+                        </p>
+                        <div class="valence-mood" aria-hidden="true">
+                          <span class="valence-emoji" id="valence-emoji">😐</span>
+                        </div>
+                        <label class="valence-label-row" for="valence-slider">
+                          <strong id="valence-value">0%</strong>
+                        </label>
+                        <input
+                          class="valence-range"
+                          type="range"
+                          id="valence-slider"
+                          min="-100"
+                          max="100"
+                          step="1"
+                          value="0"
+                          aria-label="Valence score from negative to positive"
+                        />
+                        <div class="valence-ticks" aria-hidden="true">
+                          <span>Negative</span>
+                          <span>Neutral</span>
+                          <span>Positive</span>
+                        </div>
+                        <p class="valence-hint" id="valence-hint">Neutral</p>
+                      </div>
+                    </div>
+
+                    <!-- Face scan recording panel section -->
+                    <section
+                      class="panel scan hidden"
+                      id="panel-scan"
+                      aria-label="Face recording"
+                    >
+                      <p class="step-label">Face scan</p>
                       <div class="video-wrap" id="video-wrap">
                         <div
                           class="scan-overlay hidden"
@@ -764,101 +755,12 @@
                 </div>
               </section>
 
-              <!-- Fifth section, user will select their arousal lever after listening to music using slider -->
-              <section class="wizard-step" data-step="5" aria-hidden="true">
-                <div class="valence-card">
-                  <!-- <p class="valence-kicker">Self-assessment</p> -->
-                  <h3 class="valence-title">How do you feel right now?</h3>
-                  <p class="valence-copy">
-                    Move the slider to describe your feeling: left means more
-                    unpleasant/negative, right means more pleasant/positive.
-                  </p>
-                  <div class="valence-mood" aria-hidden="true">
-                    <span class="valence-emoji" id="valence-emoji">😐</span>
-                  </div>
-                  <label class="valence-label-row" for="valence-slider">
-                    <!-- <span class="valence-label">Valence Score</span> -->
-                    <strong id="valence-value">0%</strong>
-                  </label>
-                  <input
-                    class="valence-range"
-                    type="range"
-                    id="valence-slider"
-                    min="-100"
-                    max="100"
-                    step="1"
-                    value="0"
-                    aria-label="Valence score from negative to positive"
-                  />
-                  <div class="valence-ticks" aria-hidden="true">
-                    <span>Negative</span>
-                    <span>Neutral</span>
-                    <span>Positive</span>
-                  </div>
-                  <p class="valence-hint" id="valence-hint">Neutral</p>
-                </div>
-              </section>
-
-              <!-- Sixth section, score and user arousal lever will be visualized here -->
-              <section class="wizard-step" data-step="6" aria-hidden="true">
+              <!-- Session result -->
+              <section class="wizard-step" data-step="4" aria-hidden="true">
                 <div class="emotion-card">
                   <div class="emotion-header">
-                    <!-- <p class="emotion-kicker">Emotion map</p> -->
                     <h3 class="emotion-title">Your Session Result</h3>
-                    <!-- <p class="emotion-copy">
-                      We combine your self-reported valence (X-axis) with backend arousal from
-                      face scan (Y-axis) to place your current state in a 2D affect space.
-                    </p> -->
                   </div>
-
-                  <!-- Emotion summary helper section -->
-                  <section
-                    class="emotion-simple"
-                    aria-label="Simple emotional summary"
-                  >
-                    <div class="emotion-simple-head">
-                      <span
-                        class="emotion-simple-emoji"
-                        id="emotion-simple-emoji"
-                        aria-hidden="true"
-                        >🙂</span
-                      >
-                      <div>
-                        <p
-                          class="emotion-simple-title"
-                          id="emotion-simple-title"
-                        >
-                          Your quick result
-                        </p>
-                      </div>
-                    </div>
-
-                    <div class="emotion-meter-block">
-                      <div class="emotion-meter-label-row">
-                        <span>Activation (Focus/Relax)</span>
-                        <strong id="emotion-arousal-meter-label">—</strong>
-                      </div>
-                      <div class="emotion-meter-track">
-                        <div
-                          class="emotion-meter-fill arousal"
-                          id="emotion-arousal-meter-fill"
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div class="emotion-meter-block">
-                      <div class="emotion-meter-label-row">
-                        <span>Positivity (Positive/Negative)</span>
-                        <strong id="emotion-valence-meter-label">—</strong>
-                      </div>
-                      <div class="emotion-meter-track">
-                        <div
-                          class="emotion-meter-fill valence"
-                          id="emotion-valence-meter-fill"
-                        ></div>
-                      </div>
-                    </div>
-                  </section>
 
                   <div class="emotion-summary">
                     <div class="emotion-primary-score">
@@ -874,18 +776,48 @@
                       >
                         0.0%
                       </p>
-                      <!-- <p class="emotion-primary-sub" id="emotion-primary-sub">
-                        From face-scan arousal (Y-axis)
-                      </p> -->
                     </div>
                   </div>
+
+                  <section
+                    class="emotion-compare"
+                    aria-label="Before and after face scan comparison"
+                  >
+                    <div class="emotion-compare__head">
+                      <h4>Relax Score change</h4>
+                    </div>
+                    <div class="emotion-compare__row">
+                      <div class="emotion-compare__label-row">
+                        <span>Before music</span>
+                        <strong id="emotion-baseline-arousal-label">—</strong>
+                      </div>
+                      <div class="emotion-compare__track">
+                        <div
+                          class="emotion-compare__fill baseline"
+                          id="emotion-baseline-arousal-fill"
+                        ></div>
+                      </div>
+                    </div>
+                    <div class="emotion-compare__row">
+                      <div class="emotion-compare__label-row">
+                        <span>After music</span>
+                        <strong id="emotion-post-arousal-label">—</strong>
+                      </div>
+                      <div class="emotion-compare__track">
+                        <div
+                          class="emotion-compare__fill post"
+                          id="emotion-post-arousal-fill"
+                        ></div>
+                      </div>
+                    </div>
+                  </section>
 
                   <div class="emotion-map-wrap">
                     <div
                       class="emotion-map"
                       id="emotion-map"
                       role="img"
-                      aria-label="2D emotion map with valence on x-axis and arousal on y-axis"
+                      aria-label="Emotion constellation with valence on x-axis and arousal on y-axis"
                     >
                       <svg
                         class="emotion-constellation"
@@ -905,16 +837,6 @@
                       ></div>
                       <div class="emotion-axis axis-x"></div>
                       <div class="emotion-axis axis-y"></div>
-                      <div
-                        class="emotion-guide guide-x"
-                        id="emotion-guide-x"
-                        aria-hidden="true"
-                      ></div>
-                      <div
-                        class="emotion-guide guide-y"
-                        id="emotion-guide-y"
-                        aria-hidden="true"
-                      ></div>
                       <div class="emotion-center-dot" aria-hidden="true"></div>
                       <span class="emotion-axis-label axis-top"
                         >Activation</span
@@ -944,9 +866,6 @@
                     </div>
                   </div>
 
-                  <!-- <p class="emotion-interpretation" id="emotion-interpretation">
-                    Move through the flow to generate your position.
-                  </p> -->
                 </div>
               </section>
 
