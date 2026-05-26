@@ -60,6 +60,7 @@ function getDomReferences() {
   return {
     panelInstructions: H.byId("panel-instructions"),
     panelScan: H.byId("panel-scan"),
+    scanIntro: H.byId("scan-intro"),
     panelResult: H.byId("panel-result"),
     preview: H.byId("preview"),
     placementStatus: H.byId("placement-status"),
@@ -357,6 +358,10 @@ function openScanPanelAndRequestCamera(camera) {
   if (cameraDOM.btnStart) cameraDOM.btnStart.disabled = true;
   cameraDOM.panelInstructions.classList.add("hidden");
   cameraDOM.panelScan.classList.remove("hidden");
+  if (cameraDOM.scanIntro) {
+    cameraDOM.scanIntro.classList.remove("hidden");
+    cameraDOM.scanIntro.hidden = false;
+  }
   hideError();
   waitForModelsThenOpenCamera(camera);
 }
@@ -519,6 +524,9 @@ export function restartFaceScanForNewRecording() {
   if (!cameraDOM) return;
   resetUiToStart(faceScanFlowHandles.camera, faceScanFlowHandles.recording);
   syncStartButtonAvailability();
+  if (faceScanFlowHandles.camera && !faceScanConsentRequired) {
+    autoStartFaceScanDirectly();
+  }
 }
 
 /**
@@ -531,6 +539,10 @@ function resetUiToStart(camera, recording) {
   cameraDOM.panelInstructions.classList.remove("hidden");
   cameraDOM.panelScan.classList.add("hidden");
   cameraDOM.panelResult.classList.add("hidden");
+  if (cameraDOM.scanIntro) {
+    cameraDOM.scanIntro.classList.add("hidden");
+    cameraDOM.scanIntro.hidden = true;
+  }
   if (camera) camera.hideScanCameraStates();
   cameraDOM.overlayCountdown.hidden = true;
   cameraDOM.overlayCountdown.classList.add("hidden");
@@ -675,6 +687,10 @@ function bindFaceScanEvents(camera, recording) {
     if (camera) camera.hideScanCameraStates();
     if (camera) camera.stopStream();
     cameraDOM.panelScan.classList.add("hidden");
+    if (cameraDOM.scanIntro) {
+      cameraDOM.scanIntro.classList.add("hidden");
+      cameraDOM.scanIntro.hidden = true;
+    }
     cameraDOM.panelInstructions.classList.remove("hidden");
     hideError();
     syncStartButtonAvailability();

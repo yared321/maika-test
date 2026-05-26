@@ -495,6 +495,9 @@ function runCountdownThenRecord(state) {
           state.el.overlayCountdown.hidden = true;
           state.el.overlayCountdown.classList.add("hidden");
         }
+        document.dispatchEvent(
+          new CustomEvent("maika-demo:face-scan-countdown-complete"),
+        );
         var p = state.bridges.onCountdownDone && state.bridges.onCountdownDone();
         Promise.resolve(p).then(resolve);
         return;

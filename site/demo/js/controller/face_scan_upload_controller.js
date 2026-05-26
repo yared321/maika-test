@@ -4,6 +4,7 @@ import {
   resolveEndpoint,
 } from "../service/service.js";
 import { applyDefaultDemographics } from "./demographic_form_controller.js";
+import { syncWizardNextButton } from "./wizard_nav_controller.js";
 
 /**
  * Read arousal from an API assessment payload.
@@ -97,15 +98,9 @@ function setUploadUiState(dom, state, mode, label) {
   }
 }
 
-/**
- * Enable or disable the wizard next button for the face-scan step.
- * @param {Record<string, HTMLElement|null>} dom
- * @param {Record<string, any>} state
- */
+/** @deprecated Use syncWizardNextButton — kept as alias for existing call sites. */
 export function syncFaceStepNextGate(dom, state) {
-  if (!dom.nextButton || state.currentStep !== 0) return;
-  dom.nextButton.disabled =
-    state.upload.isInFlight || !state.upload.completed;
+  syncWizardNextButton(dom, state);
 }
 
 /**
