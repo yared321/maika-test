@@ -259,29 +259,59 @@
   stroke-width: 0.28;
   stroke-linecap: round;
   filter: drop-shadow(0 0 1.5px rgba(140, 220, 255, 0.2));
+  opacity: 0.45;
+  animation: emotion-link-breathe 2.8s ease-in-out infinite;
+  will-change: opacity, filter;
 }
 
 .emotion-constellation-link.is-cluster {
   stroke: rgba(168, 213, 255, 0.34);
   stroke-width: 0.34;
+  animation-duration: 2.4s;
 }
 
 .emotion-constellation-link.is-cluster-main {
   stroke: rgba(196, 228, 255, 0.52);
   stroke-width: 0.4;
   filter: drop-shadow(0 0 4px rgba(130, 220, 255, 0.36));
+  opacity: 0.65;
+  animation: emotion-link-breathe-main 2.1s ease-in-out infinite;
 }
 
 .emotion-constellation-link.is-primary {
   stroke: rgba(126, 238, 202, 0.55);
   stroke-width: 0.42;
   filter: drop-shadow(0 0 3px rgba(118, 240, 191, 0.42));
+  opacity: 0.72;
+  animation: emotion-link-breathe-primary 1.85s ease-in-out infinite;
+}
+
+.emotion-mode-anchor-star {
+  fill: rgba(202, 224, 255, 0.34);
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 0.14;
+  stroke-linejoin: round;
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: emotion-anchor-star-twinkle 5.5s ease-in-out infinite;
+}
+
+.emotion-constellation-cluster {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+
+.emotion-constellation-cluster.is-floating {
+  animation: emotion-cluster-fade 4.8s ease-in-out infinite;
+  will-change: opacity;
 }
 
 .emotion-constellation-star {
   fill: rgba(202, 224, 255, 0.36);
   stroke: rgba(255, 255, 255, 0.14);
-  stroke-width: 0.18;
+  stroke-width: 0.16;
+  stroke-linejoin: round;
   transform-box: fill-box;
   transform-origin: center;
   animation: none;
@@ -325,16 +355,7 @@
 }
 
 .emotion-center-dot {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(235, 246, 255, 0.82);
-  box-shadow: 0 0 0 6px rgba(214, 236, 255, 0.14);
-  z-index: 3;
+  display: none;
 }
 
 .emotion-axis {
@@ -535,6 +556,10 @@
   color: rgba(160, 234, 255, 0.9);
 }
 
+.emotion-mode-layer.is-floating .emotion-mode-tag.is-active {
+  animation: emotion-tag-come-go 4.2s ease-in-out infinite;
+}
+
 .emotion-mode-tag.is-active {
   opacity: 1;
   border-color: rgba(160, 218, 255, 0.38);
@@ -542,6 +567,10 @@
     0 10px 24px rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(160, 218, 255, 0.12) inset,
     0 0 12px rgba(76, 227, 255, 0.16);
+}
+
+.emotion-mode-layer.is-floating .emotion-mode-tag.is-primary {
+  animation: emotion-tag-come-go-primary 3.6s ease-in-out infinite;
 }
 
 .emotion-mode-tag.is-primary {
@@ -595,6 +624,70 @@
   }
 }
 
+@keyframes emotion-cluster-fade {
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes emotion-anchor-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes emotion-link-breathe {
+  0%,
+  100% {
+    opacity: 0.36;
+    filter: drop-shadow(0 0 1.5px rgba(140, 220, 255, 0.2));
+  }
+  50% {
+    opacity: 0.82;
+    filter:
+      drop-shadow(0 0 3px rgba(140, 220, 255, 0.42))
+      drop-shadow(0 0 6px rgba(76, 227, 255, 0.28));
+  }
+}
+
+@keyframes emotion-link-breathe-main {
+  0%,
+  100% {
+    opacity: 0.5;
+    filter: drop-shadow(0 0 4px rgba(130, 220, 255, 0.28));
+  }
+  50% {
+    opacity: 1;
+    filter:
+      drop-shadow(0 0 6px rgba(130, 220, 255, 0.55))
+      drop-shadow(0 0 12px rgba(76, 227, 255, 0.36));
+  }
+}
+
+@keyframes emotion-link-breathe-primary {
+  0%,
+  100% {
+    opacity: 0.58;
+    filter: drop-shadow(0 0 3px rgba(118, 240, 191, 0.34));
+  }
+  50% {
+    opacity: 1;
+    filter:
+      drop-shadow(0 0 7px rgba(118, 240, 191, 0.72))
+      drop-shadow(0 0 14px rgba(76, 227, 255, 0.38));
+  }
+}
+
 @keyframes emotion-star-twinkle {
   0%,
   100% {
@@ -611,18 +704,18 @@
     transform: scale(1);
   }
   50% {
-    transform: scale(1.18);
+    transform: scale(1.08);
   }
 }
 
 @keyframes emotion-star-primary-beacon {
   0%,
   100% {
-    transform: scale(1.08);
+    transform: scale(1.02);
     opacity: 1;
   }
   50% {
-    transform: scale(1.38);
+    transform: scale(1.12);
     opacity: 0.95;
   }
 }
@@ -772,6 +865,10 @@
     padding: 0.18rem 0.46rem;
   }
 
+  .emotion-constellation-cluster.is-floating {
+    animation: emotion-cluster-fade 5.6s ease-in-out infinite;
+  }
+
   .emotion-constellation-star.is-active {
     animation:
       emotion-star-twinkle 4.6s ease-in-out infinite,
@@ -784,10 +881,24 @@
       emotion-star-primary-beacon 2.7s ease-in-out infinite;
   }
 
+  .emotion-constellation-link {
+    animation-duration: 3.1s;
+  }
+
+  .emotion-constellation-link.is-cluster-main {
+    animation-duration: 2.8s;
+  }
+
+  .emotion-constellation-link.is-primary {
+    animation-duration: 2.4s;
+  }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
   .emotion-grid,
+  .emotion-constellation-cluster.is-floating,
+  .emotion-mode-anchor-star,
   .emotion-constellation-star,
   .emotion-mode-tag,
   .emotion-point,

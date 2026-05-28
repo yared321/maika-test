@@ -9,6 +9,10 @@ function bindDomElements(controller) {
   controller.emotionConstellationStars = controller.root.querySelector(
     "#emotion-constellation-stars",
   );
+  controller.emotionModeAnchors = controller.root.querySelector("#emotion-mode-anchors");
+  controller.emotionConstellationCluster = controller.root.querySelector(
+    "#emotion-constellation-cluster",
+  );
   controller.emotionGuideX = controller.root.querySelector("#emotion-guide-x");
   controller.emotionGuideY = controller.root.querySelector("#emotion-guide-y");
   controller.emotionPrimaryLabel = controller.root.querySelector("#emotion-primary-label");
@@ -94,6 +98,50 @@ function computeMapPosition(valence, arousal) {
  */
 function createSvgElement(tag) {
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
+}
+
+/**
+ * Build a regular star polygon in map viewBox coordinates (0–100).
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} outerR
+ * @param {number} innerR
+ * @param {number} [points]
+ * @returns {string}
+ */
+function computeStarPoints(cx, cy, outerR, innerR, points = 5) {
+  const coords = [];
+  const step = Math.PI / points;
+  let angle = -Math.PI / 2;
+  for (let i = 0; i < points * 2; i += 1) {
+    const radius = i % 2 === 0 ? outerR : innerR;
+    coords.push(
+      (cx + radius * Math.cos(angle)).toFixed(3) +
+        "," +
+        (cy + radius * Math.sin(angle)).toFixed(3),
+    );
+    angle += step;
+  }
+  return coords.join(" ");
+}
+
+/**
+ * @param {number} cx
+ * @param {number} cy
+ * @param {{ outerR?: number, innerR?: number, className?: string, label?: string, points?: number }} options
+ * @returns {SVGPolygonElement}
+ */
+function createMapStar(cx, cy, options = {}) {
+  const outerR = options.outerR ?? 0.72;
+  const innerR = options.innerR ?? outerR * 0.42;
+  const star = createSvgElement("polygon");
+  star.setAttribute(
+    "points",
+    computeStarPoints(cx, cy, outerR, innerR, options.points ?? 5),
+  );
+  star.setAttribute("class", options.className ?? "emotion-map-star");
+  if (options.label) star.setAttribute("data-emotion", options.label);
+  return star;
 }
 
 /**
@@ -199,6 +247,22 @@ function showConstellationLayer(controller) {
   controller.emotionConstellation?.removeAttribute("hidden");
 }
 
+function renderEmotionModeAnchorStars(controller) {
+  if (!controller.emotionModeAnchors) return;
+  controller.emotionModeAnchors.innerHTML = "";
+
+  for (const mode of EMOTION_MODE_POINTS) {
+    const pos = computeMapPosition(mode.valence, mode.arousal);
+    const star = createMapStar(pos.mapLeft, pos.mapTop, {
+      outerR: 0.72,
+      innerR: 0.3,
+      className: "emotion-mode-anchor-star",
+      label: mode.label,
+    });
+    controller.emotionModeAnchors.appendChild(star);
+  }
+}
+
 function initEmotionModeLayer(controller) {
   showConstellationLayer(controller);
   clearActiveEmotionModes(controller);
@@ -210,6 +274,8 @@ function initEmotionModeLayer(controller) {
       computeMapPosition(mode.valence, mode.arousal),
     );
   }
+
+  renderEmotionModeAnchorStars(controller);
 }
 
 /**
@@ -217,20 +283,28 @@ function initEmotionModeLayer(controller) {
  * @param {object} controller
  * @param {string[]} nearest
  */
+function setClusterFloating(controller, enabled) {
+  controller.emotionConstellationCluster?.classList.toggle("is-floating", enabled);
+  controller.emotionModeLayer?.classList.toggle("is-floating", enabled);
+}
+
 function renderNearestEmotionMarkers(controller, nearest) {
+  const hasCluster = Array.isArray(nearest) && nearest.length > 0;
+  setClusterFloating(controller, hasCluster);
+
   if (controller.emotionConstellationStars) {
     controller.emotionConstellationStars.innerHTML = "";
     for (const label of nearest) {
       const pos = controller.emotionModePositions.get(label);
       if (!pos) continue;
-      const star = createSvgElement("circle");
-      star.setAttribute("cx", pos.mapLeft.toFixed(2));
-      star.setAttribute("cy", pos.mapTop.toFixed(2));
-      star.setAttribute("r", "0.72");
-      star.setAttribute("class", "emotion-constellation-star is-active");
-      if (label === nearest[0]) {
-        star.classList.add("is-primary");
-      }
+      const isPrimary = label === nearest[0];
+      const star = createMapStar(pos.mapLeft, pos.mapTop, {
+        outerR: 0.72,
+        innerR: 0.3,
+        className:
+          "emotion-constellation-star is-active" + (isPrimary ? " is-primary" : ""),
+        label: label,
+      });
       controller.emotionConstellationStars.appendChild(star);
     }
   }
@@ -277,6 +351,7 @@ function setActiveEmotionModes(controller, valence, arousal, mapLeft, mapTop) {
  * @param {object} controller - The controller object containing mode elements.
  */
 function clearActiveEmotionModes(controller) {
+  setClusterFloating(controller, false);
   if (controller.emotionModeLayer) {
     controller.emotionModeLayer.innerHTML = "";
   }

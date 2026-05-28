@@ -61,7 +61,7 @@
     <link rel="stylesheet" href="/styles.css?v=20260306-teamfix" />
     <link
       rel="stylesheet"
-      href="/demo/css/demo_landing.css?v=20260515-review-cleanup"
+      href="/demo/css/demo_landing.css?v=20260528-static-demo-bg"
     />
     <link
       rel="stylesheet"
@@ -70,7 +70,7 @@
     <link rel="stylesheet" href="/demo/css/demo.css?v=20260505-wizard-steps" />
     <link
       rel="stylesheet"
-      href="/demo/css/demo_emotion_visualization.css?v=20260515-emotion-tags-no-lines"
+      href="/demo/css/demo_emotion_visualization.css?v=20260528-emotion-stars-float"
     />
     <link
       rel="stylesheet"
@@ -178,7 +178,7 @@
                     </div>
                     <article class="demo-landing__step-card">
                       <p class="demo-landing__step-title">Step 2</p>
-                      <p class="demo-landing__step-desc">Listen for one minute</p>
+                      <p class="demo-landing__step-desc">Listen</p>
                     </article>
                   </li>
                   <li class="demo-landing__step">
@@ -784,7 +784,7 @@
                     aria-label="Before and after face scan comparison"
                   >
                     <div class="emotion-compare__head">
-                      <h4>Relax Score change</h4>
+                      <h4>Activation</h4>
                     </div>
                     <div class="emotion-compare__row">
                       <div class="emotion-compare__label-row">
@@ -827,8 +827,14 @@
                         aria-hidden="true"
                         hidden
                       >
-                        <g id="emotion-constellation-links"></g>
-                        <g id="emotion-constellation-stars"></g>
+                        <g id="emotion-mode-anchors" aria-hidden="true"></g>
+                        <g
+                          id="emotion-constellation-cluster"
+                          class="emotion-constellation-cluster"
+                        >
+                          <g id="emotion-constellation-links"></g>
+                          <g id="emotion-constellation-stars"></g>
+                        </g>
                       </svg>
                       <div class="emotion-grid"></div>
                       <div

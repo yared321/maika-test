@@ -21,126 +21,10 @@
   overflow: clip;
 }
 
+/* Static themed background for demo landing + wizard (no animation). */
 .hero-cinematic[data-hero-intro]:has(
     #demo-landing:not([hidden]):not(.hidden)
-  )::before {
-  content: "";
-  position: absolute;
-  inset: -22% -16% -18%;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(
-      ellipse 70% 52% at 18% 42%,
-      rgba(76, 227, 255, 0.28),
-      transparent 60%
-    ),
-    radial-gradient(
-      ellipse 72% 56% at 84% 24%,
-      rgba(223, 122, 254, 0.34),
-      transparent 62%
-    ),
-    radial-gradient(
-      ellipse 60% 50% at 52% 82%,
-      rgba(129, 74, 200, 0.26),
-      transparent 60%
-    );
-  filter: blur(44px);
-  opacity: 0.78;
-  animation:
-    demo-screen-aurora 11s ease-in-out infinite alternate,
-    demo-screen-glow-pulse 5.2s ease-in-out infinite;
-}
-
-.hero-cinematic[data-hero-intro]:has(
-    #demo-landing:not([hidden]):not(.hidden)
-  )::after {
-  content: "";
-  position: absolute;
-  inset: -30% -24%;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    conic-gradient(
-      from 0deg at 50% 50%,
-      rgba(76, 227, 255, 0.32),
-      rgba(223, 122, 254, 0.36),
-      rgba(129, 74, 200, 0.28),
-      rgba(76, 227, 255, 0.32)
-    ),
-    linear-gradient(
-      112deg,
-      transparent 18%,
-      rgba(76, 227, 255, 0.2) 45%,
-      rgba(223, 122, 254, 0.24) 56%,
-      transparent 84%
-    );
-  mix-blend-mode: screen;
-  filter: blur(62px);
-  opacity: 0.58;
-  animation:
-    demo-screen-mesh 9s linear infinite,
-    demo-screen-glow-pulse-soft 6.4s ease-in-out infinite;
-}
-
-/* Static themed background while wizard flow is visible (no animation). */
-.hero-cinematic[data-hero-intro]:has(
-    #demo-flow:not([hidden]):not(.hidden)
-  )::before {
-  content: "";
-  position: absolute;
-  inset: -20% -14% -18%;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(
-      ellipse 70% 52% at 18% 42%,
-      rgba(76, 227, 255, 0.2),
-      transparent 62%
-    ),
-    radial-gradient(
-      ellipse 72% 56% at 84% 24%,
-      rgba(223, 122, 254, 0.24),
-      transparent 64%
-    ),
-    radial-gradient(
-      ellipse 60% 50% at 52% 82%,
-      rgba(129, 74, 200, 0.2),
-      transparent 62%
-    );
-  filter: blur(40px);
-  opacity: 0.68;
-}
-
-.hero-cinematic[data-hero-intro]:has(
-    #demo-flow:not([hidden]):not(.hidden)
-  )::after {
-  content: "";
-  position: absolute;
-  inset: -26% -18%;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    conic-gradient(
-      from 0deg at 50% 50%,
-      rgba(76, 227, 255, 0.18),
-      rgba(223, 122, 254, 0.22),
-      rgba(129, 74, 200, 0.18),
-      rgba(76, 227, 255, 0.18)
-    ),
-    linear-gradient(
-      112deg,
-      transparent 18%,
-      rgba(76, 227, 255, 0.12) 46%,
-      rgba(223, 122, 254, 0.14) 56%,
-      transparent 84%
-    );
-  mix-blend-mode: screen;
-  filter: blur(54px);
-  opacity: 0.42;
-}
-
-/* Keep same theme on wizard screens, but static (no animation). */
+  )::before,
 .hero-cinematic[data-hero-intro]:has(
     #demo-flow:not([hidden]):not(.hidden)
   )::before {
@@ -167,8 +51,12 @@
     );
   filter: blur(44px);
   opacity: 0.68;
+  animation: none;
 }
 
+.hero-cinematic[data-hero-intro]:has(
+    #demo-landing:not([hidden]):not(.hidden)
+  )::after,
 .hero-cinematic[data-hero-intro]:has(
     #demo-flow:not([hidden]):not(.hidden)
   )::after {
@@ -195,54 +83,13 @@
   mix-blend-mode: screen;
   filter: blur(62px);
   opacity: 0.46;
+  animation: none;
 }
 
 .hero-cinematic[data-hero-intro] > .demo-landing,
 .hero-cinematic[data-hero-intro] > .user-input-section {
   position: relative;
   z-index: 1;
-}
-
-@keyframes demo-screen-aurora {
-  from {
-    transform: translate3d(-4%, 1%, 0) scale(1);
-    opacity: 0.62;
-  }
-  to {
-    transform: translate3d(5%, -3%, 0) scale(1.12);
-    opacity: 0.9;
-  }
-}
-
-@keyframes demo-screen-mesh {
-  from {
-    transform: translate3d(-2%, 0, 0) rotate(0deg) scale(1);
-    opacity: 0.46;
-  }
-  to {
-    transform: translate3d(2%, -2%, 0) rotate(360deg) scale(1.08);
-    opacity: 0.72;
-  }
-}
-
-@keyframes demo-screen-glow-pulse {
-  0%,
-  100% {
-    opacity: 0.62;
-  }
-  50% {
-    opacity: 0.94;
-  }
-}
-
-@keyframes demo-screen-glow-pulse-soft {
-  0%,
-  100% {
-    opacity: 0.44;
-  }
-  50% {
-    opacity: 0.74;
-  }
 }
 
 .demo-landing[hidden],

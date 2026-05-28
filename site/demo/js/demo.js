@@ -261,7 +261,7 @@ function bindEvents(dom, state, controllers) {
       return;
     }
     if (phase === "post" && state.currentStep === 2 && state.upload.completed) {
-      ensurePostScanValenceForResults(state, controllers);
+      syncPostScanValenceForResults(state, controllers);
       updateStep(dom, state, 3, { controllers });
     }
   });
@@ -358,6 +358,9 @@ function updateStep(dom, state, targetStep, options = {}) {
 
   if (targetStep === 3) {
     setValencePanelVisible(dom, false);
+    if (options.controllers) {
+      syncPostScanValenceForResults(state, options.controllers);
+    }
     options.controllers?.score?.render?.();
   }
 
@@ -423,16 +426,17 @@ function moveFaceScanApp(dom, targetHost) {
 }
 
 /**
- * Use slider value when set; otherwise keep neutral (0) for the results map.
+ * Copy the post-scan valence slider into wizard state before rendering results.
  * @param {Record<string, any>} state
- * @param {{ valence?: { setValue: (n: number) => void } }} controllers
+ * @param {{ valence?: { getState: () => { xAxisValencePercent: number, xAxisValenceLabel: string, xAxisValenceEmoji: string } } }} controllers
  */
-function ensurePostScanValenceForResults(state, controllers) {
-  if (state.emotionViz.postScanValenceConfirmed) return;
-  state.emotionViz.xAxisValencePercent = VALENCE_X_AXIS_DEFAULT;
-  state.emotionViz.xAxisValenceLabel = "Neutral";
-  state.emotionViz.xAxisValenceEmoji = "😐";
-  controllers.valence?.setValue(VALENCE_X_AXIS_DEFAULT);
+function syncPostScanValenceForResults(state, controllers) {
+  const valenceState = controllers.valence?.getState?.();
+  if (!valenceState) return;
+  state.emotionViz.xAxisValencePercent = valenceState.xAxisValencePercent;
+  state.emotionViz.xAxisValenceLabel = valenceState.xAxisValenceLabel;
+  state.emotionViz.xAxisValenceEmoji = valenceState.xAxisValenceEmoji;
+  state.emotionViz.postScanValenceConfirmed = true;
 }
 
 function setWizardError(dom, message) {
