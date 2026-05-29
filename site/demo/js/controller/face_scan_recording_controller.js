@@ -2,6 +2,10 @@
  * MediaRecorder session: chunks, timer pill, start after countdown, stop → blob + upload bridge.
  */
 import * as H from "../utils/face_scan_helpers.js";
+import {
+  finalizeArtifactTimeline,
+  getEffectiveRecordTargetMs,
+} from "./face_scan_artifact_policy.js";
 import { FaceScanUpload } from "../service/service.js";
 
 /**
@@ -24,8 +28,9 @@ function startRecordingPillTicker(ctx, el, cfg) {
   if (el.recordingPill) el.recordingPill.classList.remove("hidden");
   return globalThis.setInterval(function () {
     if (!el.recordingTime) return;
+    var targetMs = getEffectiveRecordTargetMs(ctx, cfg);
     var label =
-      H.formatTime(ctx.recordBudgetAccumMs) + " / " + H.formatTime(cfg.recordTargetMs);
+      H.formatTime(ctx.recordBudgetAccumMs) + " / " + H.formatTime(targetMs);
     var pausedUi =
       ctx.recordingFramingReady && ctx.recorder && ctx.recorder.state === "paused";
     el.recordingTime.textContent = pausedUi ? label + " · paused" : label;
@@ -114,14 +119,30 @@ function createRecorderStopHandler(state, Camera, resolve) {
     state.ctx.recorder = null;
     if (Camera2) Camera2.stopStream();
 
-    var blob = new Blob(state.chunks, { type: state.lastMime || "video/mp4" });
-    if (state.discardCurrentRecording) {
+    var nowMs = performance.now();
+    var qualityTimeline = finalizeArtifactTimeline(state.ctx, nowMs);
+    state.ctx.qualityTimeline = qualityTimeline;
+
+    var discardRun =
+      state.discardCurrentRecording || !!state.ctx.discardCurrentRecording;
+    if (discardRun) {
       state.discardCurrentRecording = false;
+      state.ctx.discardCurrentRecording = false;
       state.chunks.length = 0;
-      state.bridges.resetUiToStart();
+      var autoRestart = !!state.ctx.autoRestartCameraAfterAbort;
+      var restartMessage = state.ctx.qualityRestartMessage || "";
+      state.ctx.autoRestartCameraAfterAbort = false;
+      state.ctx.qualityRestartMessage = "";
+      if (autoRestart && typeof state.bridges.onQualityRestart === "function") {
+        state.bridges.onQualityRestart(restartMessage, qualityTimeline);
+      } else {
+        state.bridges.resetUiToStart();
+      }
       resolve();
       return;
     }
+
+    var blob = new Blob(state.chunks, { type: state.lastMime || "video/mp4" });
     state.chunks.length = 0;
     state.bridges.hideError();
 
@@ -297,6 +318,7 @@ function beginRecordingState(state) {
       state.el,
       state.cfg,
     );
+    state.ctx.recordWallClockStartedAt = performance.now();
     state.ctx.recorder.start(200);
     Camera.syncFaceScanFx(null);
   });

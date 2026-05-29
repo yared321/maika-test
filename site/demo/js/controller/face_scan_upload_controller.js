@@ -266,7 +266,7 @@ export async function startFaceUpload(dom, state, setWizardError) {
           ? "Network or CORS error."
           : `Upload failed (HTTP ${uploadResult.status || 0}).`);
     failFaceUpload(dom, state, setWizardError, UPLOAD_STATUS.error, message);
-  } catch (error) {
+  } catch (_error) {
     failFaceUpload(
       dom,
       state,
@@ -274,7 +274,6 @@ export async function startFaceUpload(dom, state, setWizardError) {
       UPLOAD_STATUS.error,
       "Unexpected upload error. Please try again.",
     );
-    console.error("Upload failed unexpectedly:", error);
   } finally {
     state.upload.isInFlight = false;
     syncFaceStepNextGate(dom, state);
