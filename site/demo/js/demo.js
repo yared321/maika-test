@@ -21,7 +21,6 @@ import {
 } from "./controller/face_scan_upload_controller.js";
 
 import {
-  autoStartFaceScanDirectly,
   initFaceScanFlow,
   resetFaceScanFlowForLanding,
   restartFaceScanForNewRecording,
@@ -46,14 +45,12 @@ const AUTO_ADVANCE_STEPS = new Set([2]);
 
 try {
   await fetchMusicData();
-} catch (error) {
-  console.error("Failed to fetch music data:", error);
+} catch (_error) {
 }
 
 try {
   await initFaceScanFlow();
-} catch (error) {
-  console.error("Failed to initialize face scan flow:", error);
+} catch (_error) {
 }
 
 initDemoWizard();
@@ -200,6 +197,21 @@ function initializeUi(dom, state) {
   updateStep(dom, state, 0, { focus: false });
 }
 
+/**
+ * Start the post-music face scan exactly once from wizard step 3.
+ * This prevents duplicate camera requests and keeps alignment state stable.
+ */
+function startPostScanCapture(dom, state) {
+  moveFaceScanApp(dom, "post");
+  setFaceScanConsentRequired(false);
+  resetValencePlacementForScan(dom);
+  state.emotionViz.postScanValenceConfirmed = false;
+  resetUploadState(state);
+  clearRecordedPreview(dom, state);
+  syncRecordAgainButton(dom, false);
+  restartFaceScanForNewRecording();
+}
+
 function bindEvents(dom, state, controllers) {
   document.addEventListener(MUSIC_PROGRESS_EVENT, (ev) => {
     const seconds = Number(ev?.detail?.currentTime) || 0;
@@ -343,17 +355,7 @@ function updateStep(dom, state, targetStep, options = {}) {
   }
 
   if (targetStep === 2) {
-    moveFaceScanApp(dom, "post");
-    setFaceScanConsentRequired(false);
-    resetValencePlacementForScan(dom);
-    state.emotionViz.postScanValenceConfirmed = false;
-    resetUploadState(state);
-    clearRecordedPreview(dom, state);
-    syncRecordAgainButton(dom, false);
-    restartFaceScanForNewRecording();
-    globalThis.requestAnimationFrame(function () {
-      autoStartFaceScanDirectly();
-    });
+    startPostScanCapture(dom, state);
   }
 
   if (targetStep === 3) {
