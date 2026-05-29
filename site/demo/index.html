@@ -30,6 +30,23 @@
     />
     <meta name="demo-verify-url" content="" />
     <meta name="turnstile-site-key" content="__TURNSTILE_SITE_KEY__" />
+    <meta name="maika-face-detector-provider" content="mediapipe" />
+    <meta name="maika-mediapipe-model-type" content="landmarker" />
+    <meta
+      name="maika-mediapipe-js-cdn"
+      content="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14"
+    />
+    <meta
+      name="maika-mediapipe-wasm-root"
+      content="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+    />
+    <meta
+      name="maika-mediapipe-model-url"
+      content="https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+    />
+    <meta name="maika-mediapipe-delegate" content="GPU" />
+    <meta name="maika-mediapipe-min-detection-confidence" content="0.35" />
+    <meta name="maika-face-scan-debug" content="true" />
     <link
       rel="icon"
       href="/assets/images/am47mjWFDKrmVUvpsmW7KI1MFg.jpg"
@@ -661,6 +678,41 @@
                               Preparing…
                             </p>
                           </div>
+                          <div
+                            class="scan-recovery hidden"
+                            id="scan-recovery"
+                            role="status"
+                            aria-live="polite"
+                          >
+                            <div class="scan-recovery-icon" aria-hidden="true">
+                              <svg
+                                width="28"
+                                height="28"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M12 8v4l2.5 2.5M21 12a9 9 0 1 1-2.64-6.36"
+                                  stroke="currentColor"
+                                  stroke-width="1.75"
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                />
+                              </svg>
+                            </div>
+                            <p class="scan-recovery-eyebrow">Measurement paused</p>
+                            <p class="scan-recovery-title">Ready for another try</p>
+                            <p
+                              class="scan-recovery-message"
+                              id="scan-recovery-message"
+                            ></p>
+                            <ul class="scan-recovery-checklist">
+                              <li>Center your face in the frame</li>
+                              <li>Use steady, even lighting</li>
+                              <li>Hold still while recording</li>
+                            </ul>
+                          </div>
                           <p
                             class="placement-status"
                             id="placement-status"
@@ -688,8 +740,19 @@
                           </div>
                         </div>
                       </div>
-                      <div class="actions">
-                        <button type="button" class="btn" id="btn-cancel">
+                      <div class="actions scan-actions" id="scan-actions">
+                        <button
+                          type="button"
+                          class="btn primary btn-restart hidden"
+                          id="btn-restart-camera"
+                        >
+                          Restart camera
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-cancel-scan"
+                          id="btn-cancel"
+                        >
                           Cancel
                         </button>
                       </div>
@@ -981,11 +1044,6 @@
         </div>
       </footer>
     </div>
-    <script
-      src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"
-      crossorigin="anonymous"
-    ></script>
-
     <script src="/app.js" defer></script>
     <script src="/demo/js/demo_turnstile_boot.js"></script>
     <script
