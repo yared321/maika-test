@@ -1,30 +1,497 @@
 [
-    {
-      "id": "dances_in_dub_echoes",
-      "title": "Dances in Dub Echoes",
-      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/dances_in_dub_echoes.mp3", 
-      "image": "/demo/data/images/dances_in_dub_echoes.jpeg",
-      "genres": ["techno"]
-    },
-    {
-      "id": "endless_nightdrive",
-      "title": "Endless Nightdrive",
-      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/endless_nightdrive.mp3", 
-      "image": "/demo/data/images/endless_nightdrive.jpeg",
-      "genres": ["synthwave"]
-    },
-    {
-      "id": "footsteps_fade",
-      "title": "Footsteps Fade",
-      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/footsteps_fade.mp3",
-      "image": "/demo/data/images/footsteps_fade.jpeg",
-      "genres": ["neo-classical"]
-    },
-    {
-      "id": "slow_orbit",
-      "title": "Slow Orbit",
-      "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/slow_orbit.mp3", 
-      "image": "/demo/data/images/slow_orbit.jpeg",
-      "genres": ["ambient"]
-    }
-  ]
+  {
+    "id": "trk_8807630c-e278-4df7-ae02-c0a27366e3fe",
+    "title": "Guitar Whispers",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Guitar%20Whispers.mp3",
+    "image": "/demo/data/images/14_guitar_whispers.png",
+    "genres": [
+      "classic"
+    ]
+  },
+  {
+    "id": "trk_504202e4-ed13-4300-8113-8d51f0e6d443",
+    "title": "Ethereal Moonlight",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Ethereal%20Moonlight.mp3",
+    "image": "/demo/data/images/45_ethereal_moonlight.png",
+    "genres": [
+      "neo-classical"
+    ]
+  },
+  {
+    "id": "trk_51626d42-f94b-457e-9fe8-ab4201a0a05a",
+    "title": "Ocean Dreams",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Ocean%20Dreams.mp3",
+    "image": "/demo/data/images/32_ocean_dreams.png",
+    "genres": [
+      "electronic chill"
+    ]
+  },
+  {
+    "id": "trk_cd47157a-2463-4d6f-b6f2-c4233a5482e3",
+    "title": "Voice of Midnight Memories",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Voice%20of%20Midnight%20Memories.mp3",
+    "image": "/demo/data/images/54_voice_of_midnight_memories.png",
+    "genres": [
+      "lofi"
+    ]
+  },
+  {
+    "id": "trk_1395a2b7-2042-477f-80ae-b81b58dd9252",
+    "title": "Raindrops on Windowpanes",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Raindrops%20on%20Windowpanes.mp3",
+    "image": "/demo/data/images/05_raindrops_on_windowpanes.png",
+    "genres": [
+      "hip-pop"
+    ]
+  },
+  {
+    "id": "trk_716ba9c9-7adf-4b9d-82a1-3afbff444393",
+    "title": "Golden Hour Cathedral",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Golden%20Hour%20Cathedral.mp3",
+    "image": "/demo/data/images/10_golden_hour_cathedral.png",
+    "genres": [
+      "neo-classical"
+    ]
+  },
+  {
+    "id": "trk_2cab4dbe-8499-4f1e-a10a-135374cb07fe",
+    "title": "Gentle Whispers",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Gentle%20Whispers.mp3",
+    "image": "/demo/data/images/24_gentle_whispers.png",
+    "genres": [
+      "classic"
+    ]
+  },
+  {
+    "id": "trk_945c626d-47da-4b5c-9a82-a93808767c35",
+    "title": "Ancient Wisdom",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Ancient%20Wisdom.mp3",
+    "image": "/demo/data/images/29_ancient_wisdom.png",
+    "genres": [
+      "classic"
+    ]
+  },
+  {
+    "id": "trk_d7d5d0ad-fc57-4aa3-869a-9e6da9b5fbb3",
+    "title": "Through Neon Clouds",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Through%20Neon%20Clouds.mp3",
+    "image": "/demo/data/images/51_through_neon_clouds.png",
+    "genres": [
+      "synthwave"
+    ]
+  },
+  {
+    "id": "trk_82fd85cb-2280-4700-ad7d-055580936815",
+    "title": "Floating Between Dimensions",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Floating%20Between%20Dimensions.mp3",
+    "image": "/demo/data/images/28_floating_between_dimensions.png",
+    "genres": [
+      "electronic chill"
+    ]
+  },
+  {
+    "id": "trk_52cbbad3-5bce-4135-af5c-e2832606cd7b",
+    "title": "Echoes of Forest Whispers",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Echoes%20of%20Forest%20Whispers.mp3",
+    "image": "/demo/data/images/49_echoes_of_forest_whispers.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_10f76540-9487-4204-8368-8f566b480c20",
+    "title": "Electric Dreams",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Electric%20Dreams.mp3",
+    "image": "/demo/data/images/48_electric_dreams.png",
+    "genres": [
+      "techno"
+    ]
+  },
+  {
+    "id": "trk_27ba2c7f-11c9-4484-af97-becf45c29877",
+    "title": "Mirror Lake at Twilight",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Mirror%20Lake%20at%20Twilight.mp3",
+    "image": "/demo/data/images/47_mirror_lake_at_twilight.png",
+    "genres": [
+      "neo-classical"
+    ]
+  },
+  {
+    "id": "trk_908f9cba-dcf1-43c6-b00d-c34437221be5",
+    "title": "Old Memories",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Old%20Memories.mp3",
+    "image": "/demo/data/images/02_old_memories.png",
+    "genres": [
+      "neo-classical"
+    ]
+  },
+  {
+    "id": "trk_5700add5-3c34-4be0-8842-8c6a4b22c747",
+    "title": "Stories Told by Firelight",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Stories%20Told%20by%20Firelight.mp3",
+    "image": "/demo/data/images/58_stories_told_by_firelight.png",
+    "genres": [
+      "folk"
+    ]
+  },
+  {
+    "id": "trk_a4736113-a9a9-4de3-b215-5352772b4564",
+    "title": "Melodies from Distant Hills",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Melodies%20from%20Distant%20Hills.mp3",
+    "image": "/demo/data/images/53_melodies_from_distant_hills.png",
+    "genres": [
+      "folk"
+    ]
+  },
+  {
+    "id": "trk_02928e3d-fd39-401c-81ee-66eb75411ca1",
+    "title": "Singing Birds",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Singing%20Birds.mp3",
+    "image": "/demo/data/images/25_singing_birds.png",
+    "genres": [
+      "nature"
+    ]
+  },
+  {
+    "id": "trk_351adc77-cc66-41b0-877b-398c4a1a52e7",
+    "title": "Fire Burning",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Fire%20Burning.mp3",
+    "image": "/demo/data/images/08_fire_burning.png",
+    "genres": [
+      "nature"
+    ]
+  },
+  {
+    "id": "trk_5517edfe-4636-4135-a930-cfb06ac5a07d",
+    "title": "Heavy Rain",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Heavy%20Rain.mp3",
+    "image": "/demo/data/images/23_heavy_rain.png",
+    "genres": [
+      "nature"
+    ]
+  },
+  {
+    "id": "trk_25fec769-8aed-4756-b9da-713fe51094bd",
+    "title": "Strong Wind",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Strong%20Wind.mp3",
+    "image": "/demo/data/images/59_strong_wind.png",
+    "genres": [
+      "nature"
+    ]
+  },
+  {
+    "id": "trk_afbc8813-a493-406a-8b4a-5cb0e8714f23",
+    "title": "Thunderstorm",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Thunderstorm.mp3",
+    "image": "/demo/data/images/35_thunderstorm.png",
+    "genres": [
+      "nature"
+    ]
+  },
+  {
+    "id": "trk_931addd8-02d7-494e-8d4a-9f6f4022d28f",
+    "title": "Water Flowing",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Water%20Flowing.mp3",
+    "image": "/demo/data/images/15_water_flowing.png",
+    "genres": [
+      "nature"
+    ]
+  },
+  {
+    "id": "trk_e698053e-c7bb-4abe-a4be-a0645deb4356",
+    "title": "Over Sleepless Cities",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Over%20Sleepless%20Cities.mp3",
+    "image": "/demo/data/images/01_over_sleepless_cities.png",
+    "genres": [
+      "electronic chill"
+    ]
+  },
+  {
+    "id": "trk_cea2747a-5223-4fb4-8211-ca111d9c8219",
+    "title": "Forest Breath at Dawn",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Forest%20Breath%20at%20Dawn.mp3",
+    "image": "/demo/data/images/30_forest_breath_at_dawn.png",
+    "genres": [
+      "electronic chill"
+    ]
+  },
+  {
+    "id": "trk_6f8e4bcd-fedc-45f5-9bca-e80dd96f73cb",
+    "title": "Slow Drizzle",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Slow%20Drizzle.mp3",
+    "image": "/demo/data/images/55_slow_drizzle.png",
+    "genres": [
+      "jazz"
+    ]
+  },
+  {
+    "id": "trk_f803481b-a44f-42d4-8b89-8556605c4bc4",
+    "title": "Cafe Windows",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Cafe%20Windows.mp3",
+    "image": "/demo/data/images/33_cafe_windows.png",
+    "genres": [
+      "lofi"
+    ]
+  },
+  {
+    "id": "trk_41f4fe07-64bd-4395-9276-40c9a6b0a711",
+    "title": "Footsteps Fade",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Footsteps%20Fade.mp3",
+    "image": "/demo/data/images/40_footsteps_fade.png",
+    "genres": [
+      "neo-classical"
+    ]
+  },
+  {
+    "id": "trk_8b2df36f-45ec-4af1-b08a-18d90b92e105",
+    "title": "Gilded Hall",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Gilded%20Hall.mp3",
+    "image": "/demo/data/images/46_gilded_hall.png",
+    "genres": [
+      "classic"
+    ]
+  },
+  {
+    "id": "trk_91a06c57-2313-41a5-ab69-ac7d9cf5731d",
+    "title": "Velvet Carriage",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Velvet%20Carriage.mp3",
+    "image": "/demo/data/images/56_velvet_carriage.png",
+    "genres": [
+      "classic"
+    ]
+  },
+  {
+    "id": "trk_832259f8-a857-4098-bebe-1aa82b1323a3",
+    "title": "Rain Paints the Glass",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Rain%20Paints%20the%20Glass.mp3",
+    "image": "/demo/data/images/11_rain_paints_the_glass.png",
+    "genres": [
+      "lofi"
+    ]
+  },
+  {
+    "id": "trk_01351bd2-312d-4251-8947-80794dbebd5d",
+    "title": "Odyssey in Space",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Odyssey%20in%20Space.mp3",
+    "image": "/demo/data/images/44_odyssey_in_space.png",
+    "genres": [
+      "drone"
+    ]
+  },
+  {
+    "id": "trk_fc4c0f3a-1780-4866-b487-e5b316e0bb0b",
+    "title": "Dub Echoes",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Dub%20Echoes.mp3",
+    "image": "/demo/data/images/20_dub_echoes.png",
+    "genres": [
+      "techno"
+    ]
+  },
+  {
+    "id": "trk_0b303319-61a4-4f43-9093-b05e3a6bddff",
+    "title": "Dances in Dub Echoes",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Dances%20in%20Dub%20Echoes.mp3",
+    "image": "/demo/data/images/17_dances_in_dub_echoes.png",
+    "genres": [
+      "techno"
+    ]
+  },
+  {
+    "id": "trk_99597119-55d9-414c-b4a1-edfbce164cab",
+    "title": "Shifting Signatures",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Shifting%20Signatures.mp3",
+    "image": "/demo/data/images/09_shifting_signatures.png",
+    "genres": [
+      "neo-classical"
+    ]
+  },
+  {
+    "id": "trk_78f4382d-96c7-4a1f-92e2-7644ea74d666",
+    "title": "Endless Nightdrive",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Endless%20Nightdrive.mp3",
+    "image": "/demo/data/images/37_endless_nightdrive.png",
+    "genres": [
+      "synthwave"
+    ]
+  },
+  {
+    "id": "trk_c7488359-5c42-4d28-b8ab-abfd2393bf0a",
+    "title": "Tranquil Tales",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Tranquil%20Tales.mp3",
+    "image": "/demo/data/images/16_tranquil_tales.png",
+    "genres": [
+      "folk"
+    ]
+  },
+  {
+    "id": "trk_8cf1452e-2b56-4249-9bcb-890bb65bab0b",
+    "title": "Harmony in Stillness",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Harmony%20in%20Stillness.mp3",
+    "image": "/demo/data/images/38_harmony_in_stillness.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_cd21b2a9-23a7-439d-a2a8-f5b2d5deb022",
+    "title": "In the Mirror Room",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/In%20the%20Mirror%20Room.mp3",
+    "image": "/demo/data/images/43_in_the_mirror_room.png",
+    "genres": [
+      "techno"
+    ]
+  },
+  {
+    "id": "trk_00fe5934-7f64-4b00-870c-4ec2a5ac89d3",
+    "title": "River Clearing",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/River%20Clearing.mp3",
+    "image": "/demo/data/images/50_river_clearing.png",
+    "genres": [
+      "neo-classical"
+    ]
+  },
+  {
+    "id": "trk_2cbf55cb-bca9-408d-b882-4cebbdadcd42",
+    "title": "Minimal Lines",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Minimal%20Lines.mp3",
+    "image": "/demo/data/images/06_minimal_lines.png",
+    "genres": [
+      "techno"
+    ]
+  },
+  {
+    "id": "trk_21d68c7d-7ba8-4058-a902-2b7f2880275a",
+    "title": "Morning Dawn",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Morning%20Dawn.mp3",
+    "image": "/demo/data/images/18_morning_dawn.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_4ff27f61-850b-4d5e-bf40-807742794d23",
+    "title": "Neon City",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Neon%20City.mp3",
+    "image": "/demo/data/images/22_neon_city.png",
+    "genres": [
+      "synthwave"
+    ]
+  },
+  {
+    "id": "trk_2b260e6e-3f21-43d3-a1b2-eb4d4d9b99a7",
+    "title": "Night Chants",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Night%20Chants.mp3",
+    "image": "/demo/data/images/57_night_chants.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_acfa9a53-3f4b-46f0-85ed-473c8594ff3d",
+    "title": "Offbeat Aria",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Offbeat%20Aria.mp3",
+    "image": "/demo/data/images/61_offbeat_aria.png",
+    "genres": [
+      "jazz"
+    ]
+  },
+  {
+    "id": "trk_0fb33faf-4401-4f84-a461-2fec8f990c3d",
+    "title": "Reflections on Old Records",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Reflections%20on%20Old%20Records.mp3",
+    "image": "/demo/data/images/03_reflections_on_old_records.png",
+    "genres": [
+      "lofi"
+    ]
+  },
+  {
+    "id": "trk_b8a60d90-beb0-496d-8c74-53dfb59941e3",
+    "title": "Tokyo Skyline",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Tokyo%20Skyline.mp3",
+    "image": "/demo/data/images/34_tokyo_skyline.png",
+    "genres": [
+      "synthwave"
+    ]
+  },
+  {
+    "id": "trk_7d1a4369-5f94-4f03-ba4c-25f7e3d63696",
+    "title": "Sleepless Skyline",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Sleepless%20Skyline.mp3",
+    "image": "/demo/data/images/9_sleepless_skyline.png",
+    "genres": [
+      "synthwave"
+    ]
+  },
+  {
+    "id": "trk_87f3c457-229f-4d18-b108-4df8c5429eb5",
+    "title": "Tomorrow's Soundscape",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Tomorrow%27s%20Soundscape.mp3",
+    "image": "/demo/data/images/21_tomorrows_soundscape.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_22ccb04f-7248-435f-8d27-f395c153ca17",
+    "title": "Slow Orbit",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Slow%20Orbit.mp3",
+    "image": "/demo/data/images/07_slow_orbit.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_24b4136d-ccca-4c3b-a9b9-c3881a855d48",
+    "title": "Twilight Transit",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Twilight%20Transit.mp3",
+    "image": "/demo/data/images/26_twilight_transit.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_d9ffb088-3291-450f-a53b-7794232ae8f7",
+    "title": "Through Ion Trails",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Through%20Ion%20Trails.mp3",
+    "image": "/demo/data/images/52_through_ion_trails.png",
+    "genres": [
+      "electronic chill"
+    ]
+  },
+  {
+    "id": "trk_e874270c-b14f-4654-92cb-8a6bafb59e43",
+    "title": "Lanterns of Enlightenment",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Lanterns%20of%20Enlightenment.mp3",
+    "image": "/demo/data/images/04_lanterns_of_enlightenment.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_26784cfe-0690-423c-8310-1ca7b9ba19c0",
+    "title": "Eternal Starlit Air",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Eternal%20Starlit%20Air.mp3",
+    "image": "/demo/data/images/36_eternal_starlit_air.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_b28e7a05-6dca-4dd7-9d38-702dbf2a094e",
+    "title": "Soft Horizons",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Soft%20Horizons.mp3",
+    "image": "/demo/data/images/31_soft_horizons.png",
+    "genres": [
+      "ambient"
+    ]
+  },
+  {
+    "id": "trk_665b0788-e6de-48eb-b582-35448567eab8",
+    "title": "Meditation in Slow Motion",
+    "url": "https://storage.googleapis.com/maika-demo-audio/tracks/demo/Meditation%20in%20Slow%20Motion.mp3",
+    "image": "/demo/data/images/13_meditation_in_slow_motion.png",
+    "genres": [
+      "ambient"
+    ]
+  }
+]
