@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=20260306-teamfix">
+  <link rel="stylesheet" href="/styles.css?v=20260611-beta-banner">
 </head>
 <body>
   <div class="site-bg" aria-hidden="true"></div>
@@ -30,6 +30,10 @@
           <a data-nav-link href="/demo/">Demo</a>
         </nav>
         <div class="nav-actions">
+          <button type="button" class="beta-register-btn small" data-beta-register-open aria-controls="beta-register-panel" aria-expanded="false">
+            <span class="beta-register-btn__label">Register as a beta tester</span>
+            <span class="beta-register-btn__arrow" aria-hidden="true">→</span>
+          </button>
           <a class="btn btn-primary small" data-magnetic href="https://cal.eu/maika-ai/maika-intro-call" target="_blank" rel="noopener">Book a call</a>
           <button class="btn btn-ghost small mobile-menu-btn" type="button" data-mobile-toggle aria-expanded="false" aria-label="Toggle menu">Menu</button>
         </div>
@@ -40,9 +44,15 @@
         <a data-nav-link href="/blog/">Blog</a>
         <a data-nav-link href="/contact/">Contact</a>
         <a data-nav-link href="/demo/">Demo</a>
+        <button type="button" class="beta-register-btn small" data-beta-register-open aria-controls="beta-register-panel" aria-expanded="false">
+          <span class="beta-register-btn__label">Register as a beta tester</span>
+          <span class="beta-register-btn__arrow" aria-hidden="true">→</span>
+        </button>
         <a class="btn btn-primary small" href="https://cal.eu/maika-ai/maika-intro-call" target="_blank" rel="noopener">Book a call</a>
       </div>
     </header>
+
+    <section class="beta-register-panel hidden" id="beta-register-panel" hidden tabindex="-1" aria-label="Beta tester registration"></section>
 
     <main>
       <section class="section page-hero">
@@ -151,6 +161,7 @@
     </footer>
   </div>
 
+  <script src="/beta-register-data.js" defer></script>
   <script src="/app.js" defer></script>
 </body>
 </html>
