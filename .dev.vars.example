@@ -1,5 +1,6 @@
 # Copy to `.dev.vars` for `npm run dev:pages` (wrangler). Do not commit `.dev.vars`.
-# Same keys as Netlify / `.env.local` for demo APIs and proxy.
+# Copy to `.env.local` for `./run.sh` / `npm run dev` — or use `.env.example` as the template.
+# Same keys as Netlify dashboard env for demo APIs, proxy, and beta registration.
 
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
@@ -12,3 +13,5 @@ MAIKA_RPPG_UPSTREAM=
 MAIKA_PUBLIC_KEY=
 MAIKA_CAPTCHA_TOKEN=
 CORS_ALLOW_ORIGIN=*
+MAIKA_BACKEND_URL=https://maika-backend-service.onrender.com
+MAIKA_BACKEND_API_KEY=
