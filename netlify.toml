@@ -36,3 +36,9 @@
   to = "/.netlify/functions/demo-code-revoke"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/beta-register"
+  to = "/.netlify/functions/beta-register"
+  status = 200
+  force = true
