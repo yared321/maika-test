@@ -444,6 +444,326 @@
     });
   };
 
+  const BETA_TELEGRAM_URL = 'https://t.me/c/3915691502/1';
+
+  const betaRegisterErrorMessage = (payload) => {
+    const tryString = (value) => {
+      if (typeof value !== 'string') return '';
+      const trimmed = value.trim();
+      if (!trimmed) return '';
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          const nested = JSON.parse(trimmed);
+          return betaRegisterErrorMessage(nested);
+        } catch {
+          return '';
+        }
+      }
+      return trimmed;
+    };
+
+    if (payload && typeof payload === 'object') {
+      return (
+        tryString(payload.message) ||
+        tryString(payload.error) ||
+        tryString(payload.detail) ||
+        'Registration failed. Please try again.'
+      );
+    }
+
+    return tryString(payload) || 'Registration failed. Please try again.';
+  };
+
+  const mountBetaRegisterForm = (panel) => {
+    if (panel.querySelector('[data-beta-register-form]')) return;
+
+    const data = window.BETA_REGISTER_DATA || {
+      countries: [],
+      deviceTypes: [
+        { value: 'iOS', label: 'iOS' },
+        { value: 'Android', label: 'Android' },
+        { value: 'Both', label: 'Both' },
+      ],
+      referralSources: [],
+    };
+
+    const escapeHtml = (value) =>
+      String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    const buildSelectOptions = (items, placeholder) => {
+      const options = [
+        `<option value="" disabled selected hidden>${escapeHtml(placeholder)}</option>`,
+      ];
+      items.forEach((item) => {
+        if (typeof item === 'string') {
+          options.push(
+            `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`,
+          );
+        } else {
+          options.push(
+            `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`,
+          );
+        }
+      });
+      return options.join('');
+    };
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'beta-register-form-title');
+
+    panel.innerHTML = `
+      <button type="button" class="beta-register-dialog__backdrop" data-beta-register-close aria-label="Close registration dialog"></button>
+      <div class="beta-register-dialog__panel">
+        <div class="beta-register-card">
+          <div class="beta-register-card__header">
+            <div>
+              <p class="beta-register-card__kicker">Beta program</p>
+              <h2 class="beta-register-card__title" id="beta-register-form-title">Join the Maika beta</h2>
+              <p class="beta-register-card__lead">
+                Get early access to our adaptive music demo and help shape what we build next.
+                We will only use your details for beta access and product updates.
+              </p>
+            </div>
+            <button type="button" class="beta-register-card__close" data-beta-register-close aria-label="Close registration form">×</button>
+          </div>
+          <form class="beta-register-form" data-beta-register-form novalidate>
+            <div class="form-field">
+              <label for="beta-register-full-name">Full name</label>
+              <input class="input" id="beta-register-full-name" name="full_name" type="text" autocomplete="name" required placeholder="Jane Doe">
+            </div>
+            <div class="form-field">
+              <label for="beta-register-email">Email</label>
+              <input class="input" id="beta-register-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com">
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <label for="beta-register-birthdate">Birthdate</label>
+                <input class="input" id="beta-register-birthdate" name="birthdate" type="date" required max="${today}">
+              </div>
+              <div class="form-field">
+                <label for="beta-register-country">Country</label>
+                <select class="input select" id="beta-register-country" name="country" required>
+                  ${buildSelectOptions(data.countries, 'Select country')}
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <label for="beta-register-device">Device type</label>
+                <select class="input select" id="beta-register-device" name="device_type" required>
+                  ${buildSelectOptions(data.deviceTypes, 'Select device')}
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="beta-register-referral">How did you hear about us?</label>
+                <select class="input select" id="beta-register-referral" name="referral_source" required>
+                  ${buildSelectOptions(data.referralSources, 'Select source')}
+                </select>
+              </div>
+            </div>
+            <p class="beta-register-form__note">
+              By registering, you agree to be contacted about the Maika beta program.
+            </p>
+            <button class="btn btn-primary beta-register-form__submit" type="submit" data-beta-submit>
+              <span class="beta-register-form__submit-inner">
+                <span class="beta-register-form__spinner" aria-hidden="true"></span>
+                <span data-beta-submit-label>Submit registration</span>
+              </span>
+            </button>
+            <div class="form-status" data-beta-register-status aria-live="polite"></div>
+          </form>
+          <div class="beta-register-success hidden" data-beta-register-success hidden>
+            <p class="beta-register-success__kicker">Registration complete</p>
+            <h3 class="beta-register-success__title">You're on the beta list</h3>
+            <p class="beta-register-success__copy">
+              Thanks for signing up. Join our Telegram group for beta updates, release news, and a direct line to the Maika team.
+            </p>
+            <a
+              class="btn btn-primary beta-register-success__tg"
+              href="${BETA_TELEGRAM_URL}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Join Telegram group
+              <span aria-hidden="true">↗</span>
+            </a>
+            <button type="button" class="btn btn-secondary beta-register-success__done" data-beta-register-close>
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const setBetaRegisterSuccessVisible = (panel, visible) => {
+    const form = panel.querySelector('[data-beta-register-form]');
+    const success = panel.querySelector('[data-beta-register-success]');
+    if (form) {
+      form.hidden = visible;
+      form.classList.toggle('hidden', visible);
+    }
+    if (success) {
+      success.hidden = !visible;
+      success.classList.toggle('hidden', !visible);
+    }
+  };
+
+  const setBetaDialogOpen = (panel, openButtons, open) => {
+    panel.hidden = !open;
+    panel.classList.toggle('hidden', !open);
+    panel.classList.toggle('is-open', open);
+    document.body.classList.toggle('beta-register-open', open);
+    openButtons.forEach((btn) => btn.setAttribute('aria-expanded', String(open)));
+  };
+
+  const setBetaSubmitLoading = (submitButton, loading) => {
+    if (!submitButton) return;
+    submitButton.disabled = loading;
+    submitButton.classList.toggle('is-loading', loading);
+    submitButton.setAttribute('aria-busy', String(loading));
+    const label = submitButton.querySelector('[data-beta-submit-label]');
+    if (label) {
+      label.textContent = loading ? 'Submitting…' : 'Submit registration';
+    }
+  };
+
+  const initBetaRegister = () => {
+    const openButtons = document.querySelectorAll('[data-beta-register-open]');
+    const panel = document.getElementById('beta-register-panel');
+    if (!openButtons.length || !panel) return;
+
+    mountBetaRegisterForm(panel);
+
+    const form = panel.querySelector('[data-beta-register-form]');
+    const status = panel.querySelector('[data-beta-register-status]');
+    const closeTargets = panel.querySelectorAll('[data-beta-register-close]');
+    const nameInput = panel.querySelector('#beta-register-full-name');
+    const submitButton = panel.querySelector('[data-beta-submit]');
+    let isSubmitting = false;
+
+    const resetBetaDialogState = () => {
+      form?.reset();
+      setBetaRegisterSuccessVisible(panel, false);
+      if (status) {
+        status.textContent = '';
+        status.classList.remove('is-error');
+      }
+      isSubmitting = false;
+      setBetaSubmitLoading(submitButton, false);
+    };
+
+    const closeDialog = () => {
+      if (isSubmitting) return;
+      setBetaDialogOpen(panel, openButtons, false);
+      window.setTimeout(() => resetBetaDialogState(), reducedMotion ? 0 : 200);
+    };
+
+    const openDialog = () => {
+      resetBetaDialogState();
+
+      const mobileMenu = document.querySelector('[data-mobile-menu]');
+      const mobileToggle = document.querySelector('[data-mobile-toggle]');
+      if (mobileMenu?.classList.contains('open')) {
+        mobileMenu.classList.remove('open');
+        mobileToggle?.setAttribute('aria-expanded', 'false');
+      }
+
+      setBetaDialogOpen(panel, openButtons, true);
+      window.setTimeout(() => nameInput?.focus(), reducedMotion ? 0 : 120);
+    };
+
+    openButtons.forEach((openButton) => {
+      openButton.addEventListener('click', openDialog);
+    });
+
+    closeTargets.forEach((closeButton) => {
+      closeButton.addEventListener('click', closeDialog);
+    });
+
+    panel.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') closeDialog();
+    });
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!form || !status || isSubmitting) return;
+
+      status.textContent = '';
+      status.classList.remove('is-error');
+
+      const formData = new FormData(form);
+      const submitPayload = {
+        full_name: String(formData.get('full_name') || '').trim(),
+        email: String(formData.get('email') || '').trim(),
+        birthdate: String(formData.get('birthdate') || '').trim(),
+        country: String(formData.get('country') || '').trim(),
+        device_type: String(formData.get('device_type') || '').trim(),
+        referral_source: String(formData.get('referral_source') || '').trim(),
+      };
+
+      if (
+        !submitPayload.full_name ||
+        !submitPayload.email ||
+        !submitPayload.birthdate ||
+        !submitPayload.country ||
+        !submitPayload.device_type ||
+        !submitPayload.referral_source
+      ) {
+        status.textContent = 'Please complete all fields before submitting.';
+        status.classList.add('is-error');
+        return;
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submitPayload.email)) {
+        status.textContent = 'Please enter a valid email address.';
+        status.classList.add('is-error');
+        return;
+      }
+
+      isSubmitting = true;
+      setBetaSubmitLoading(submitButton, true);
+
+      try {
+        const response = await fetch('/api/beta-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(submitPayload),
+        });
+
+        let responsePayload = {};
+        try {
+          responsePayload = await response.json();
+        } catch {
+          responsePayload = {};
+        }
+
+        if (!response.ok || responsePayload.ok === false) {
+          throw new Error(betaRegisterErrorMessage(responsePayload));
+        }
+
+        form.reset();
+        setBetaRegisterSuccessVisible(panel, true);
+      } catch (error) {
+        status.textContent =
+          error instanceof Error
+            ? error.message
+            : 'Registration failed. Please try again or email info@maika-ai.com.';
+        status.classList.add('is-error');
+      } finally {
+        isSubmitting = false;
+        setBetaSubmitLoading(submitButton, false);
+      }
+    });
+  };
+
   document.addEventListener('DOMContentLoaded', () => {
     initCurrentNav();
     initHeader();
@@ -461,5 +781,6 @@
     initProcessProgress();
     initForms();
     initYear();
+    initBetaRegister();
   });
 })();
