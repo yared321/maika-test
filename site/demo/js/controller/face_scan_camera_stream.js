@@ -8,6 +8,7 @@ import * as H from "../utils/face_scan_helpers.js";
 import { startAlignLoop, stopAlignLoop } from "./face_scan_align_loop.js";
 import { stopRecordFramingLoop } from "./face_scan_record_loop.js";
 import { syncFaceScanFx, clearFaceMesh, showCameraDeniedOverlay } from "./face_scan_camera_fx.js";
+import { startWarmup, stopWarmup } from "./face_scan_warmup.js";
 
 /**
  * Requested camera constraints per the client's frontend quality-control spec.
@@ -29,6 +30,7 @@ export function stopStream(state) {
   state.ctx.streamRequestGen = (state.ctx.streamRequestGen || 0) + 1;
   stopRecordFramingLoop(state);
   stopAlignLoop(state);
+  stopWarmup(state);
   state.ctx.detectionInFlight = false;
   if (state.el.preview) state.el.preview.onloadeddata = null;
   if (state.ctx.stream) {
@@ -55,7 +57,9 @@ export function stopStream(state) {
  * - Attaches MediaStream to preview video when permission is granted.
  * - Hides loading/denied overlays, initializes placement UI, and waits for first
  *   frame (`onloadeddata`) so detector logic starts on a ready preview.
- * - Triggers integration callback (`onCameraReady`) and starts align loop.
+ * - Triggers `onCameraReady`, then runs a short warmup phase (letting
+ *   auto-exposure/autofocus settle and priming the detector) before firing
+ *   `onAlignmentStart` and starting the alignment loop.
  * - On failure, shows a human-readable denied/error overlay and returns to idle.
  *
  * This is the single entry point for camera startup in the scan flow.
@@ -142,7 +146,13 @@ export function requestCameraAndStartAlignment(state) {
       state.ctx.cameraRequestInFlight = false;
       if (state.ctx.streamRequestGen !== myGen) return;
       if (state.bridges.onCameraReady) state.bridges.onCameraReady();
-      startAlignLoop(state);
+      startWarmup(state, function () {
+        // Warmup runs for a couple of seconds; re-check in case stopStream()
+        // (or a newer request) happened while it was running.
+        if (state.ctx.streamRequestGen !== myGen) return;
+        if (state.bridges.onAlignmentStart) state.bridges.onAlignmentStart();
+        startAlignLoop(state);
+      });
     })
     .catch(function (e) {
       state.ctx.cameraRequestInFlight = false;

@@ -129,7 +129,16 @@ site/demo/js/controller/face_scan_camera_controller.js
 site/demo/js/controller/face_scan_camera_stream.js
   getUserMedia lifecycle: requestCameraAndStartAlignment / stopStream.
   Re-entrancy guard (cameraRequestInFlight), stale-request generation
-  counter (streamRequestGen), and track.onended disconnect handling.
+  counter (streamRequestGen), and track.onended disconnect handling. Runs
+  the warmup phase (face_scan_warmup.js) between camera-ready and align.
+
+site/demo/js/controller/face_scan_warmup.js
+  Fixed-duration warmup phase (startWarmup / stopWarmup) between camera-ready
+  and alignment: lets auto-exposure/autofocus settle, takes a one-time
+  ambient brightness/FPS baseline (ctx.warmupSummary, kept separate from the
+  live rolling-history arrays align resets on start), and primes the face
+  detector. A dependency of face_scan_camera_stream.js, not of the
+  composition root directly.
 
 site/demo/js/controller/face_scan_align_loop.js
   Alignment polling loop (tickAlignment / startAlignLoop / stopAlignLoop)
@@ -249,7 +258,7 @@ scan) reuses the same `camera`/`recording` instances rather than recreating
 them — this is the fix from the "made the camera not to instantiate
 repeatedly" commit.
 
-### 2. Camera start → alignment → countdown
+### 2. Camera start → warmup → alignment → countdown
 
 Triggered by `btnStart` click (first scan, after consent) or
 `autoStartFaceScanDirectly()` (second scan, no consent re-check):
@@ -260,7 +269,11 @@ flow_controller: openScanPanelAndRequestCamera(camera)
       → camera.requestCameraAndStartAlignment()  [face_scan_camera_stream.js]
           → navigator.mediaDevices.getUserMedia(...)
           → attach stream to <video id="preview">
-          → bridges.onCameraReady()               (flow_controller: overlay → "align" stage)
+          → bridges.onCameraReady()               (flow_controller: overlay → "camera" stage,
+                                                     "preparing your camera" tip)
+          → startWarmup(state, onComplete)         [face_scan_warmup.js]
+              → ~2.5s of ambient brightness/FPS sampling + detector priming
+              → onComplete: bridges.onAlignmentStart()  (overlay → "align" stage/tip)
           → startAlignLoop(state)                  [face_scan_align_loop.js]
               → setInterval(tickAlignment, alignIntervalMs)
                   tickAlignment:

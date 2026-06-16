@@ -589,7 +589,10 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (u.pathname === FACE_SCAN_DEBUG_METADATA_PATH) {
+  if (
+    u.pathname === FACE_SCAN_DEBUG_METADATA_PATH ||
+    u.pathname === FACE_SCAN_DEBUG_METADATA_PATH + "/"
+  ) {
     handleFaceScanDebugMetadata(req, res).catch((err) => {
       if (!res.headersSent) {
         writeJson(res, req, 500, { ok: false, error: String(err?.message || err) });

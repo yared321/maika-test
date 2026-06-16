@@ -1,14 +1,15 @@
 <svg width="680" height="440" viewBox="0 0 680 440" xmlns="http://www.w3.org/2000/svg" role="img">
 <title>Camera controller module structure</title>
-<desc>face_scan_camera_controller.js as a composition root: two external callers (flow controller, recording controller) call into it from above, it contains five internal modules (stream, align loop, record loop, overlay fx, detection utils), and it depends on two external modules below (quality checks, mesh renderer).</desc>
+<desc>face_scan_camera_controller.js as a composition root: two external callers (flow controller, recording controller) call into it from above, it contains five internal modules (stream, align loop, record loop, overlay fx, detection utils), and it depends on three external modules below (quality checks, mesh renderer, warmup).</desc>
 <defs>
 <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#73726c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
 </defs>
 
 <line x1="218" y1="76" x2="218" y2="100" stroke="#73726c" stroke-width="1.5" marker-end="url(#arrow2)"/>
 <line x1="457" y1="76" x2="457" y2="100" stroke="#73726c" stroke-width="1.5" marker-end="url(#arrow2)"/>
-<line x1="258" y1="360" x2="258" y2="380" stroke="#73726c" stroke-width="1.5" marker-end="url(#arrow2)"/>
-<line x1="446" y1="360" x2="446" y2="380" stroke="#73726c" stroke-width="1.5" marker-end="url(#arrow2)"/>
+<line x1="185" y1="360" x2="185" y2="380" stroke="#73726c" stroke-width="1.5" marker-end="url(#arrow2)"/>
+<line x1="369" y1="360" x2="369" y2="380" stroke="#73726c" stroke-width="1.5" marker-end="url(#arrow2)"/>
+<line x1="524" y1="360" x2="524" y2="380" stroke="#73726c" stroke-width="1.5" marker-end="url(#arrow2)"/>
 
 <g>
 <rect x="123" y="40" width="190" height="36" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
@@ -52,11 +53,15 @@
 </g>
 
 <g>
-<rect x="174" y="380" width="168" height="36" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
-<text x="258" y="398" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#444441">quality_checks.js</text>
+<rect x="101" y="380" width="168" height="36" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="185" y="398" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#444441">quality_checks.js</text>
 </g>
 <g>
-<rect x="366" y="380" width="160" height="36" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
-<text x="446" y="398" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#444441">mesh_renderer.js</text>
+<rect x="289" y="380" width="160" height="36" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="369" y="398" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#444441">mesh_renderer.js</text>
+</g>
+<g>
+<rect x="469" y="380" width="110" height="36" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="524" y="398" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#444441">warmup.js</text>
 </g>
 </svg>

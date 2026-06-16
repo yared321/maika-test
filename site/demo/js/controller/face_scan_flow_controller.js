@@ -12,6 +12,8 @@ import { stopMusicPlayback } from "./music_stream_controller.js";
 
 /** Fade out background music when face recording finishes (blob ready), not when starting the camera. */
 var MUSIC_FADE_MS_AFTER_RECORDING_COMPLETE = 5000;
+/** Camera warmup duration (client spec: "2-3 seconds") before alignment gating starts. */
+var WARMUP_DURATION_MS = 2500;
 var RECORD_TARGET_MS = 30000;
 var RECORD_MAX_WALL_CLOCK_MS = 45000;
 var ALIGN_INTERVAL_MS = 120;
@@ -76,6 +78,9 @@ var context = {
   stream: null,
   recorder: null,
   cameraMetadata: null,
+  warmupTimer: null,
+  warmupTimeout: null,
+  warmupSummary: null,
   alignTimer: null,
   recordFramingTimer: null,
   countdownTimer: 0,
@@ -741,6 +746,7 @@ function createCameraController(recording) {
       countdownNumber: cameraDOM.countdownNumber,
     },
     config: {
+      warmupDurationMs: WARMUP_DURATION_MS,
       alignIntervalMs: ALIGN_INTERVAL_MS,
       stableHitCount: STABLE_HIT_COUNT,
       faceMinFrac: FACE_MIN_FRAC,
@@ -770,6 +776,10 @@ function createCameraController(recording) {
     bridges: {
       hideError: hideError,
       onCameraReady: function () {
+        setScanOverlayStage("camera");
+        setScanOverlayTip("Hold steady — preparing your camera…");
+      },
+      onAlignmentStart: function () {
         setScanOverlayStage("align");
         setScanOverlayTip(
           "Center your face in the guide. We start automatically once alignment is stable.",
