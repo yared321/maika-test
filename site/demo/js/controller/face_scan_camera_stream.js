@@ -9,6 +9,21 @@ import { startAlignLoop, stopAlignLoop } from "./face_scan_align_loop.js";
 import { stopRecordFramingLoop } from "./face_scan_record_loop.js";
 import { syncFaceScanFx, clearFaceMesh, showCameraDeniedOverlay } from "./face_scan_camera_fx.js";
 
+/**
+ * Requested camera constraints per the client's frontend quality-control spec.
+ * No `min` on width/height/frameRate: a hard `min` can throw OverconstrainedError
+ * on devices/browsers that can't meet it, where graceful degradation is what we
+ * want instead. `max: 30` on frameRate is safe to keep (a `max` can never fail
+ * this way — it only prevents picking an unnecessarily high rate that would
+ * bloat file size/processing for no analysis benefit).
+ */
+var REQUESTED_VIDEO_CONSTRAINTS = {
+  facingMode: "user",
+  width: { ideal: 640 },
+  height: { ideal: 480 },
+  frameRate: { ideal: 30, max: 30 },
+};
+
 /** Stops loops, closes media tracks, and resets camera runtime to idle. */
 export function stopStream(state) {
   state.ctx.streamRequestGen = (state.ctx.streamRequestGen || 0) + 1;
@@ -62,14 +77,20 @@ export function requestCameraAndStartAlignment(state) {
   state.ctx.cameraRequestInFlight = true;
   var myGen = (state.ctx.streamRequestGen = (state.ctx.streamRequestGen || 0) + 1);
   state.ctx.phase = "align";
+  state.ctx.cameraMetadata = {
+    requested_width: REQUESTED_VIDEO_CONSTRAINTS.width.ideal,
+    requested_height: REQUESTED_VIDEO_CONSTRAINTS.height.ideal,
+    requested_fps: REQUESTED_VIDEO_CONSTRAINTS.frameRate.ideal,
+    actual_width: null,
+    actual_height: null,
+    reported_fps: null,
+    facing_mode: null,
+    codec: null,
+    mime_type: null,
+  };
   navigator.mediaDevices
     .getUserMedia({
-      video: {
-        facingMode: "user",
-        width: { ideal: 1280, min: 640 },
-        height: { ideal: 720, min: 480 },
-        frameRate: { ideal: 24, max: 30 },
-      },
+      video: REQUESTED_VIDEO_CONSTRAINTS,
       audio: false,
     })
     .then(function (mediaStream) {
@@ -81,13 +102,22 @@ export function requestCameraAndStartAlignment(state) {
         return Promise.reject(new Error("face_scan_stale_stream_request"));
       }
       state.ctx.stream = mediaStream;
-      mediaStream.getVideoTracks().forEach(function (t) {
+      var videoTracks = mediaStream.getVideoTracks();
+      videoTracks.forEach(function (t) {
         t.onended = function () {
           if (state.ctx.streamRequestGen !== myGen) return;
           showCameraDeniedOverlay(state, "Camera disconnected. Please reconnect and retry.");
           stopStream(state);
         };
       });
+      var track0 = videoTracks[0];
+      if (track0 && typeof track0.getSettings === "function") {
+        var settings = track0.getSettings();
+        state.ctx.cameraMetadata.actual_width = settings.width != null ? settings.width : null;
+        state.ctx.cameraMetadata.actual_height = settings.height != null ? settings.height : null;
+        state.ctx.cameraMetadata.reported_fps = settings.frameRate != null ? settings.frameRate : null;
+        state.ctx.cameraMetadata.facing_mode = settings.facingMode || null;
+      }
       if (state.el.preview) state.el.preview.srcObject = mediaStream;
       if (state.el.scanOverlayCamera) state.el.scanOverlayCamera.classList.add("hidden");
       if (state.el.scanOverlayDenied) state.el.scanOverlayDenied.classList.add("hidden");

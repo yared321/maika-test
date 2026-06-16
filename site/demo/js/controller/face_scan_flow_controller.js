@@ -75,6 +75,7 @@ var context = {
   phase: "idle",
   stream: null,
   recorder: null,
+  cameraMetadata: null,
   alignTimer: null,
   recordFramingTimer: null,
   countdownTimer: 0,

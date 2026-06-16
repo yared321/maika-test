@@ -2,11 +2,51 @@
  * MediaRecorder session: chunks, timer pill, start after countdown, stop → blob + upload bridge.
  */
 import * as H from "../utils/face_scan_helpers.js";
+import * as Dbg from "../utils/face_scan_debug.js";
 import {
   finalizeArtifactTimeline,
   getEffectiveRecordTargetMs,
 } from "./face_scan_artifact_policy.js";
 import { FaceScanUpload } from "../service/service.js";
+
+/** Extracts the codec list from a MediaRecorder MIME type string, if present. */
+function parseCodecFromMimeType(mimeType) {
+  if (!mimeType) return null;
+  var match = /codecs=([^;]+)/i.exec(mimeType);
+  return match ? match[1].replace(/"/g, "").trim() : null;
+}
+
+/**
+ * Debug-only: POST camera-init metadata to the local dev server, which writes
+ * `site/demo/data/meta_data/face-scan-camera-metadata-<timestamp>.json`.
+ * Gated behind the same flag as console logging (maika-face-scan-debug /
+ * ?faceScanDebug=1) — never runs for real users. Requires `npm run dev`
+ * (maika-dev-proxy); on static hosts the request is a no-op after a silent
+ * failure. Fires once per recording attempt, regardless of outcome.
+ */
+function saveCameraMetadataDebugJson(ctx) {
+  if (!Dbg.isFaceScanDebugEnabled()) return;
+  if (!ctx.cameraMetadata) return;
+  var payload = ctx.cameraMetadata;
+  fetch("/api/face-scan-debug-metadata", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+    .then(function (res) {
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function (data) {
+      if (data && data.ok) {
+        Dbg.logFaceScanStep("camera metadata saved", {
+          path: data.path,
+          metadata: payload,
+        });
+      }
+    })
+    .catch(function () {});
+}
 
 /**
  * Reveal result panel and hide scan panel after recording completes.
@@ -122,6 +162,7 @@ function createRecorderStopHandler(state, Camera, resolve) {
     var nowMs = performance.now();
     var qualityTimeline = finalizeArtifactTimeline(state.ctx, nowMs);
     state.ctx.qualityTimeline = qualityTimeline;
+    saveCameraMetadataDebugJson(state.ctx);
 
     var discardRun =
       state.discardCurrentRecording || !!state.ctx.discardCurrentRecording;
@@ -303,6 +344,10 @@ function beginRecordingState(state) {
 
     if (!state.lastMime && state.ctx.recorder.mimeType) {
       state.lastMime = state.ctx.recorder.mimeType;
+    }
+    if (state.ctx.cameraMetadata) {
+      state.ctx.cameraMetadata.mime_type = state.lastMime || null;
+      state.ctx.cameraMetadata.codec = parseCodecFromMimeType(state.lastMime);
     }
 
     Camera.startRecordFramingLoop();
