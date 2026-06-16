@@ -13,6 +13,7 @@
  *   DEMO_ACCESS_CODES, TURNSTILE_SECRET_KEY, DEMO_BYPASS_VERIFY (optional local bypass)
  *   + optional dynamic codes: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
  *   (+ optional defaults DYNAMIC_ACCESS_CODE_MAX_USES, DYNAMIC_ACCESS_CODE_TTL_SECONDS)
+ * Beta register: MAIKA_BACKEND_URL, MAIKA_BACKEND_API_KEY (see .env.local / .dev.vars)
  */
 import http from 'node:http';
 import https from 'node:https';
@@ -26,11 +27,41 @@ import {
   isDynamicCodeStoreConfigured,
   revokeDynamicAccessCode,
 } from '../netlify/functions/_dynamic_access_codes.mjs';
+import {
+  getBackendConfig,
+  registerBetaUser,
+  validateBetaPayload,
+} from '../netlify/functions/_beta_register_upstream.mjs';
 
 const MAX_CODES_PER_REQUEST = 100;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
+
+function loadDotEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const text = fs.readFileSync(filePath, 'utf8');
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let val = trimmed.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (!key || process.env[key]) continue;
+    process.env[key] = val;
+  }
+}
+
+loadDotEnvFile(path.join(REPO_ROOT, '.env.local'));
+loadDotEnvFile(path.join(REPO_ROOT, '.dev.vars'));
+
 const SITE_ROOT = process.env.SITE_ROOT
   ? path.resolve(process.env.SITE_ROOT)
   : path.join(REPO_ROOT, 'site');
@@ -48,6 +79,7 @@ const DEMO_CODE_CREATE_PATH = '/api/demo-code-create';
 const DEMO_CODE_REVOKE_PATH = '/api/demo-code-revoke';
 const FACE_SCAN_DEBUG_METADATA_PATH = '/api/face-scan-debug-metadata';
 const FACE_SCAN_METADATA_DIR = path.join(SITE_ROOT, 'demo', 'data', 'meta_data');
+const BETA_REGISTER_PATH = '/api/beta-register';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -286,6 +318,40 @@ async function parseJsonBody(req, res) {
     writeJson(res, req, 400, { ok: false, error: 'Invalid JSON' });
     return { ok: false, body: {} };
   }
+}
+
+async function handleBetaRegister(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, corsHeaders(req));
+    res.end();
+    return;
+  }
+  if (req.method !== 'POST') {
+    writeJson(res, req, 405, { ok: false, error: 'Method not allowed' });
+    return;
+  }
+
+  const parsed = await parseJsonBody(req, res);
+  if (!parsed.ok) return;
+
+  const validated = validateBetaPayload(parsed.body);
+  if (!validated.ok) {
+    writeJson(res, req, 400, { ok: false, error: validated.error });
+    return;
+  }
+
+  const { baseUrl, apiKey } = getBackendConfig();
+  const result = await registerBetaUser({
+    baseUrl,
+    apiKey,
+    email: validated.email,
+    full_name: validated.full_name,
+    birthdate: validated.birthdate,
+    country: validated.country,
+    device_type: validated.device_type,
+    referral_source: validated.referral_source,
+  });
+  writeJson(res, req, result.status, result.body);
 }
 
 async function handleDemoCodeCreate(req, res) {
@@ -628,5 +694,6 @@ server.listen(PORT, () => {
       `  Demo code create: POST http://localhost:${PORT}${DEMO_CODE_CREATE_PATH}\n` +
       `  Demo code revoke: POST http://localhost:${PORT}${DEMO_CODE_REVOKE_PATH}\n` +
       `  Face-scan debug metadata: POST http://localhost:${PORT}${FACE_SCAN_DEBUG_METADATA_PATH}`,
+      `  Beta register: POST http://localhost:${PORT}${BETA_REGISTER_PATH}`,
   );
 });

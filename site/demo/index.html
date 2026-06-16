@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Maika - AI Music for Your Health</title>
+    <title>Maika - Your Personalized Music Companion</title>
     <meta
       name="description"
       content="Real-time AI-powered adaptive music that uses biometrics to support stress relief, focus, recovery, and wellbeing."
     />
-    <meta property="og:title" content="Maika - AI Music for Your Health" />
+    <meta property="og:title" content="Maika - Your Personalized Music Companion" />
     <meta
       property="og:description"
       content="AI-powered adaptive music for stress relief, focus, and recovery."
@@ -19,7 +19,7 @@
       content="/assets/images/HMAXl2OBQIIUUaPBbnSBuo5EQYE.png"
     />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Maika - AI Music for Your Health" />
+    <meta name="twitter:title" content="Maika - Your Personalized Music Companion" />
     <meta
       name="twitter:description"
       content="AI-powered adaptive music for stress relief, focus, and recovery."
@@ -75,7 +75,7 @@
       rel="stylesheet"
       href="/demo/css/face_scanner_fx.css?v=20260505-split-a"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260306-teamfix" />
+    <link rel="stylesheet" href="/styles.css?v=20260611-beta-banner" />
     <link
       rel="stylesheet"
       href="/demo/css/demo_landing.css?v=20260528-static-demo-bg"
@@ -106,7 +106,7 @@
             />
             <span class="brand-label"
               ><strong>Maika Health</strong
-              ><span>AI music for your health</span></span
+              ><span>Your Personalized Music Companion</span></span
             >
           </a>
           <nav class="nav-links" aria-label="Primary">
@@ -117,6 +117,16 @@
             <a data-nav-link href="/demo/">Demo</a>
           </nav>
           <div class="nav-actions">
+            <button
+              type="button"
+              class="beta-register-btn small"
+              data-beta-register-open
+              aria-controls="beta-register-panel"
+              aria-expanded="false"
+            >
+              <span class="beta-register-btn__label">Register as a beta tester</span>
+              <span class="beta-register-btn__arrow" aria-hidden="true">→</span>
+            </button>
             <a
               class="btn btn-primary small"
               data-magnetic
@@ -142,6 +152,16 @@
           <a data-nav-link href="/blog/">Blog</a>
           <a data-nav-link href="/contact/">Contact</a>
           <a data-nav-link href="/demo/">Demo</a>
+          <button
+            type="button"
+            class="beta-register-btn small"
+            data-beta-register-open
+            aria-controls="beta-register-panel"
+            aria-expanded="false"
+          >
+            <span class="beta-register-btn__label">Register as a beta tester</span>
+            <span class="beta-register-btn__arrow" aria-hidden="true">→</span>
+          </button>
           <a
             class="btn btn-primary small"
             href="https://cal.eu/maika-ai/maika-intro-call"
@@ -151,6 +171,14 @@
           >
         </div>
       </header>
+
+      <section
+        class="beta-register-panel hidden"
+        id="beta-register-panel"
+        hidden
+        tabindex="-1"
+        aria-label="Beta tester registration"
+      ></section>
 
       <main>
         <!-- Hero wrapper section -->
@@ -1049,6 +1077,7 @@
         </div>
       </footer>
     </div>
+    <script src="/beta-register-data.js" defer></script>
     <script src="/app.js" defer></script>
     <script src="/demo/js/demo_turnstile_boot.js"></script>
     <script
