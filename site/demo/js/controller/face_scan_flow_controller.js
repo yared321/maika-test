@@ -82,7 +82,6 @@ var context = {
   recordBudgetAccumMs: 0,
   recordBudgetLastSample: null,
   recordWallClockStartedAt: null,
-  recordTargetExtensionMs: 0,
   qualityTimeline: [],
   discardCurrentRecording: false,
   autoRestartCameraAfterAbort: false,

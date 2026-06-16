@@ -342,24 +342,6 @@ export function computeFaceScanEllipse(box, video) {
   };
 }
 
-/** Pauses MediaRecorder if supported when user leaves framing. */
-export function safeRecorderPause(rec) {
-  if (!rec || typeof rec.pause !== "function") return;
-  if (rec.state === "recording")
-    try {
-      rec.pause();
-    } catch (e0) {}
-}
-
-/** Resumes MediaRecorder after being paused (face back in frame). */
-export function safeRecorderResume(rec) {
-  if (!rec || typeof rec.resume !== "function") return;
-  if (rec.state === "paused")
-    try {
-      rec.resume();
-    } catch (e1) {}
-}
-
 /** Updates placement pill text and state-* class on the element. */
 export function setPlacementUi(el, state, message) {
   if (!el) return;
@@ -410,8 +392,6 @@ export const FaceScanHelpers = {
   isFaceWellFramed,
   getFaceFramingGuidance,
   computeFaceScanEllipse,
-  safeRecorderPause,
-  safeRecorderResume,
   setPlacementUi,
   createRecorder,
   DEFAULT_FACE_MIN_MEAN_LUMINANCE,

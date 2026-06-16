@@ -1,7 +1,9 @@
 /**
  * Record-framing polling loop: samples detection during recording, evaluates
- * quality, and pauses/resumes/aborts the active MediaRecorder based on the
- * artifact policy tier. Also owns the recording-duration budget bookkeeping.
+ * quality, and aborts the active MediaRecorder based on the artifact policy
+ * tier when quality fails to recover (the recorder itself is never
+ * paused/resumed — uploaded videos must be one continuous take). Also owns
+ * the recording-duration budget bookkeeping.
  */
 import * as H from "../utils/face_scan_helpers.js";
 import * as Dbg from "../utils/face_scan_debug.js";
@@ -16,12 +18,6 @@ import {
 } from "./face_scan_detection_utils.js";
 import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./face_scan_camera_fx.js";
 
-/**
- * Consecutive quality-pause events allowed within one recording before the
- * camera/recording flow gives up and restarts from a clean state.
- */
-var MAX_ALLOWED_RECORDING_PAUSES_BEFORE_RESTART = 100;
-
 /** Resets recording-only timers, flags, and rolling quality histories. */
 function resetRecordingBudget(state) {
   state.ctx.recordBudgetAccumMs = 0;
@@ -29,8 +25,6 @@ function resetRecordingBudget(state) {
   state.ctx.recordWallClockStartedAt = null;
   state.ctx.recordingFaceInGuide = false;
   state.ctx.recordingFramingReady = false;
-  state.ctx.recordingPauseCount = 0;
-  state.ctx.recordingPauseActive = false;
   state.ctx.quality.brightnessHistory = [];
   state.ctx.quality.greenHistory = [];
   state.ctx.quality.frameDtHistory = [];
@@ -54,12 +48,12 @@ function placementMessageForArtifact(quality) {
     return "Recording — hold still for best signal.";
   }
   if (a.effectiveAction === "pause_moderate") {
-    return quality.message ? "Paused — " + quality.message : "Paused — adjust position or lighting.";
+    return quality.message ? "Recording — " + quality.message : "Recording — adjust position or lighting.";
   }
   if (a.effectiveAction === "stop_major") {
     return quality.message
-      ? "Paused — " + quality.message
-      : "Paused — quality too low. Fix your setup to continue.";
+      ? "Recording — " + quality.message
+      : "Recording — quality too low. Fix your setup to continue.";
   }
   return quality.message;
 }
@@ -90,7 +84,10 @@ export function stopRecordFramingLoop(state) {
  *   recording budget until target duration is reached.
  * - If detector is enabled, it performs one face detection sample and evaluates
  *   quality gates (framing, pose, visibility, lighting, temporal stability).
- * - Pauses the recorder when quality fails and resumes when quality passes.
+ * - Never pauses/resumes the recorder: uploaded videos must be one continuous
+ *   recording. Degraded quality only surfaces a warning and keeps recording;
+ *   only a sustained major artifact (`shouldAbortRecording`) stops the take,
+ *   discards it, and lets the flow restart from a clean alignment.
  * - Updates placement status text + face-scan overlay guidance in real time.
  * - Accumulates elapsed "valid recording" time and stops recorder when the
  *   configured recording target is reached.
@@ -111,7 +108,6 @@ export function tickCameraRecordFraming(state) {
     }
     state.ctx.recordingFaceInGuide = true;
     state.ctx.recordingFramingReady = true;
-    H.safeRecorderResume(recNoDet);
     H.setPlacementUi(
       state.el.placementStatus,
       "good",
@@ -167,15 +163,14 @@ export function tickCameraRecordFraming(state) {
       );
       syncFaceMesh(state, landmarks, !!(quality && quality.ok));
 
-      // Primary restart trigger: sustained major artifact from policy.
-      // Pause-count restart is an additional fallback trigger below.
+      // Sustained major artifact: discard this attempt and let the flow restart
+      // alignment for a fresh, fully continuous take.
       if (quality.artifact && quality.artifact.shouldAbortRecording) {
         Dbg.logFaceScanStep("record: aborting — sustained major artifact", quality.artifact);
         state.ctx.discardCurrentRecording = true;
         state.ctx.autoRestartCameraAfterAbort = true;
         state.ctx.qualityRestartMessage =
           "Signal stayed unstable for too long. Keep your face centered, hold still, and use steady lighting.";
-        H.safeRecorderPause(rec);
         state.ctx.recordingFaceInGuide = false;
         H.setPlacementUi(
           state.el.placementStatus,
@@ -189,72 +184,45 @@ export function tickCameraRecordFraming(state) {
         return;
       }
 
-      if (quality.artifact && quality.artifact.shouldPauseRecorder) {
-        if (!state.ctx.recordingPauseActive) {
-          state.ctx.recordingPauseActive = true;
-          state.ctx.recordingPauseCount =
-            (Number(state.ctx.recordingPauseCount) || 0) + 1;
-        }
+      // Quality dipped into moderate/major territory but hasn't sustained long
+      // enough to abort: the recorder is NEVER paused mid-take (uploaded videos
+      // must be one continuous recording), so we just surface guidance here and
+      // fall through to the same budget-accumulation tail used by the good path.
+      var degraded = !!(quality.artifact && quality.artifact.isDegraded);
+      if (degraded) {
         if (!state.ctx._lastRecordPauseLogged || state.ctx._lastRecordPauseLogged !== quality.message) {
           state.ctx._lastRecordPauseLogged = quality.message;
-          Dbg.logFaceScanStep("record: recorder paused (artifact)", {
+          Dbg.logFaceScanStep("record: quality degraded (tracked, recording continues)", {
             tier: quality.artifact.tier,
             action: quality.artifact.effectiveAction,
             streak: quality.artifact.failStreak,
-            pauseCount: state.ctx.recordingPauseCount,
             message: quality.message,
           });
         }
-        if (state.ctx.recordingPauseCount > MAX_ALLOWED_RECORDING_PAUSES_BEFORE_RESTART) {
-          Dbg.logFaceScanStep("record: aborting — too many pause events", {
-            pauseCount: state.ctx.recordingPauseCount,
-          });
-          state.ctx.discardCurrentRecording = true;
-          state.ctx.autoRestartCameraAfterAbort = true;
-          state.ctx.qualityRestartMessage =
-            "Recording was paused too many times (movement/lighting interruptions). Keep steady lighting and hold still so we can finish in one pass.";
-          H.safeRecorderPause(rec);
-          state.ctx.recordingFaceInGuide = false;
-          H.setPlacementUi(
-            state.el.placementStatus,
-            "bad",
-            "Too many pauses detected. Restarting camera for a cleaner recording…",
-          );
-          try {
-            rec.stop();
-          } catch (_pauseAbortStop) {}
-          syncFaceScanFx(state, box, false, quality.direction || null);
-          return;
-        }
         state.ctx.recordingFaceInGuide = false;
-        H.safeRecorderPause(rec);
-        state.ctx.recordBudgetLastSample = null;
         H.setPlacementUi(
           state.el.placementStatus,
           "bad",
           placementMessageForArtifact(quality),
         );
         syncFaceScanFx(state, box, false, quality.direction || null);
-        return;
+      } else {
+        if (state.ctx._lastRecordPauseLogged) {
+          Dbg.logFaceScanStep("record: quality recovered");
+          state.ctx._lastRecordPauseLogged = null;
+        }
+        state.ctx.recordingFaceInGuide = true;
+        state.ctx.recordingFramingReady = true;
+        var statusMsg = placementMessageForArtifact(quality) || "Recording...";
+        H.setPlacementUi(
+          state.el.placementStatus,
+          quality.artifact && quality.artifact.effectiveAction === "track_minor"
+            ? "wait"
+            : "good",
+          statusMsg,
+        );
+        syncFaceScanFx(state, box);
       }
-
-      if (state.ctx._lastRecordPauseLogged) {
-        Dbg.logFaceScanStep("record: recorder resumed (quality pass)");
-        state.ctx._lastRecordPauseLogged = null;
-      }
-      state.ctx.recordingPauseActive = false;
-      state.ctx.recordingFaceInGuide = true;
-      state.ctx.recordingFramingReady = true;
-      H.safeRecorderResume(rec);
-      var statusMsg = placementMessageForArtifact(quality) || "Recording...";
-      H.setPlacementUi(
-        state.el.placementStatus,
-        quality.artifact && quality.artifact.effectiveAction === "track_minor"
-          ? "wait"
-          : "good",
-        statusMsg,
-      );
-      syncFaceScanFx(state, box);
 
       if (rec.state !== "recording") {
         state.ctx.recordBudgetLastSample = null;
@@ -272,8 +240,6 @@ export function tickCameraRecordFraming(state) {
         try {
           rec.stop();
         } catch (es) {}
-      } else {
-        syncFaceScanFx(state, box);
       }
     })
     .catch(function () {

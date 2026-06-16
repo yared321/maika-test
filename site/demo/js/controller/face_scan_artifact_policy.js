@@ -1,25 +1,24 @@
 /**
- * rPPG-oriented artifact severity: minor (track), moderate (pause/extend), major (stop/retry).
- * Frame streaks assume ~8 quality samples/s at 120ms align interval.
+ * rPPG-oriented artifact severity: minor (track), moderate (track, degraded), major (stop/retry).
+ * The recorder is never paused/resumed mid-take — uploaded videos must be one
+ * continuous recording from t=0 to the end — so minor/moderate only flag degraded
+ * quality for UI feedback and metadata; only a sustained major artifact stops and
+ * discards the attempt. Frame streaks assume ~8 quality samples/s at 120ms align
+ * interval.
  */
 
 /** Consecutive fail samples at or below this count → minor tier (keep recording). */
 var FRAMES_MINOR_MAX = 4;
-/** Consecutive fail samples above minor and at or below this → moderate tier (pause). */
+/** Consecutive fail samples above minor and at or below this → moderate tier (tracked, degraded). */
 var FRAMES_MODERATE_MAX = 24;
 /**
  * Consecutive fail samples at or above this while major → shouldAbortRecording.
  * At the ~120ms align/record sample interval this is ~12s of sustained total face
- * loss/occlusion. Kept well below the pause-count restart fallback in
- * face_scan_camera_controller.js: a single continuous major episode only increments
- * that pause counter once (on episode start), so without this streak gate a sustained
- * total face loss would pause the recorder indefinitely with no recovery path.
+ * loss/occlusion. Without this streak gate, a sustained total face loss would
+ * otherwise have nothing to stop a take that can never finish cleanly (the
+ * recorder is never paused, only ever continued or fully aborted).
  */
 var MAJOR_ABORT_STREAK = 100;
-/** Usable-duration target increase per moderate pause episode. */
-var RECORD_EXTENSION_PER_MODERATE_MS = 2500;
-/** Cap on total extension added by moderate pauses. */
-var RECORD_EXTENSION_MAX_MS = 12000;
 
 /** Default severity per failed quality check id (before streak escalation). */
 var CHECK_BASE_SEVERITY = {
@@ -39,7 +38,7 @@ var CHECK_BASE_SEVERITY = {
 };
 
 /**
- * Ensures ctx.quality and record-extension fields exist for artifact tracking.
+ * Ensures ctx.quality fields exist for artifact tracking.
  * @param {object} ctx - face scan flow context
  * @returns {object} ctx.quality with streak, segments, and open segment initialized
  */
@@ -49,7 +48,6 @@ function ensureArtifactState(ctx) {
   if (typeof q.artifactFailStreak !== "number") q.artifactFailStreak = 0;
   if (!Array.isArray(q.qualitySegments)) q.qualitySegments = [];
   if (!q.openLowQualitySegment) q.openLowQualitySegment = null;
-  if (typeof ctx.recordTargetExtensionMs !== "number") ctx.recordTargetExtensionMs = 0;
   return q;
 }
 
@@ -109,7 +107,12 @@ function maxTier(a, b) {
   return (order[a] || 0) >= (order[b] || 0) ? a : b;
 }
 
-/** Maps artifact tier to recorder action: continue, track_minor, pause_moderate, or stop_major. */
+/**
+ * Maps artifact tier to an action identifier: continue, track_minor,
+ * pause_moderate, or stop_major. These are tier labels only — the recorder
+ * itself is never paused; they drive UI messaging and the `isDegraded` flag
+ * returned by applyArtifactPolicy below.
+ */
 function tierToAction(tier) {
   if (tier === "none") return "continue";
   if (tier === "minor") return "track_minor";
@@ -139,8 +142,8 @@ function openLowQualitySegment(q, nowMs, severity, checkId, message) {
 }
 
 /**
- * Main policy entry: updates fail streak, timeline segments, and record target extension.
- * Returns flags the camera/recording controllers use (pause, abort, recordingOk, message).
+ * Main policy entry: updates fail streak, timeline segments, and tier escalation.
+ * Returns flags the camera/recording controllers use (degraded, abort, recordingOk, message).
  * @param {object} ctx - face scan flow context
  * @param {object} result - output from runFaceQualityChecks
  * @param {number} nowMs - performance.now()
@@ -163,7 +166,7 @@ export function applyArtifactPolicy(ctx, result, nowMs, phase) {
       effectiveAction: "continue",
       recordingOk: true,
       alignCountsAsStable: true,
-      shouldPauseRecorder: false,
+      isDegraded: false,
       shouldAbortRecording: false,
       failedCheckId: null,
       message: null,
@@ -193,14 +196,6 @@ export function applyArtifactPolicy(ctx, result, nowMs, phase) {
         pulse: true,
       });
     }
-
-    if (effectiveAction === "pause_moderate") {
-      var ext = Math.min(
-        RECORD_EXTENSION_MAX_MS,
-        (ctx.recordTargetExtensionMs || 0) + RECORD_EXTENSION_PER_MODERATE_MS,
-      );
-      ctx.recordTargetExtensionMs = ext;
-    }
   }
 
   var shouldAbortRecording =
@@ -215,7 +210,7 @@ export function applyArtifactPolicy(ctx, result, nowMs, phase) {
     effectiveAction: effectiveAction,
     recordingOk: effectiveAction === "continue" || effectiveAction === "track_minor",
     alignCountsAsStable: false,
-    shouldPauseRecorder:
+    isDegraded:
       phase === "record" &&
       (effectiveAction === "pause_moderate" || effectiveAction === "stop_major"),
     shouldAbortRecording: shouldAbortRecording,
@@ -225,15 +220,16 @@ export function applyArtifactPolicy(ctx, result, nowMs, phase) {
 }
 
 /**
- * Effective usable-duration target: base recordTargetMs plus moderate pause extensions.
- * @param {object} ctx - face scan flow context (recordTargetExtensionMs)
+ * Effective recording duration target. Recording is always one continuous take,
+ * so this is just the configured target — kept as a function (rather than reading
+ * `cfg.recordTargetMs` directly at call sites) so both face_scan_record_loop.js and
+ * face_scan_recording_controller.js's pill timer stay in sync with a single source.
+ * @param {object} ctx - face scan flow context (unused, kept for call-site stability)
  * @param {object} cfg - scan config (recordTargetMs, default 30000)
- * @returns {number} milliseconds of good signal required before stopping
+ * @returns {number} milliseconds of continuous recording required before stopping
  */
 export function getEffectiveRecordTargetMs(ctx, cfg) {
-  var base = Number(cfg && cfg.recordTargetMs) || 30000;
-  var ext = Number(ctx && ctx.recordTargetExtensionMs) || 0;
-  return base + ext;
+  return Number(cfg && cfg.recordTargetMs) || 30000;
 }
 
 /**
@@ -249,12 +245,11 @@ export function finalizeArtifactTimeline(ctx, nowMs) {
 }
 
 /**
- * Clears artifact streak, segments, and record extension (e.g. on restart or new scan).
+ * Clears artifact streak and segments (e.g. on restart or new scan).
  * @param {object} ctx - face scan flow context
  */
 export function resetArtifactTimeline(ctx) {
   if (!ctx) return;
-  ctx.recordTargetExtensionMs = 0;
   if (!ctx.quality) return;
   ctx.quality.artifactFailStreak = 0;
   ctx.quality.qualitySegments = [];

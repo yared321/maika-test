@@ -35,8 +35,8 @@ them.
 |---|---|---|
 | `ALIGN_INTERVAL_MS` | `120` | Polling cadence (ms) for both the alignment loop and the record-framing loop — how often a detection + quality sample is taken. Lower = more responsive but more CPU/detector load. |
 | `STABLE_HIT_COUNT` | `4` | Consecutive good-quality alignment samples required before the 3-2-1 countdown starts. Higher = harder to trigger countdown, fewer false starts. |
-| `RECORD_TARGET_MS` | `30000` | Base usable recording duration (ms) — accumulated only while quality passes. Moderate-tier pauses extend this (see `RECORD_EXTENSION_*` below). |
-| `RECORD_MAX_WALL_CLOCK_MS` | `45000` | Hard wall-clock cap (ms) on a single recording attempt regardless of accumulated good-quality time — forces a stop even if quality never stabilizes enough to reach `RECORD_TARGET_MS`. |
+| `RECORD_TARGET_MS` | `30000` | Continuous recording duration (ms) — the recorder is never paused, so this is simply how long the take runs before a normal stop. |
+| `RECORD_MAX_WALL_CLOCK_MS` | `45000` | Independent safety cap (ms), unrelated to quality — guards against degenerate real-time overruns (e.g. a backgrounded tab delaying ticks). |
 | `MUSIC_FADE_MS_AFTER_RECORDING_COMPLETE` | `5000` | Fade-out duration (ms) for background music once a recording's blob is ready (not when the camera starts). |
 
 ### Face framing / pose
@@ -71,16 +71,17 @@ them.
 | `FACE_PRELIMINARY_RPPG_ENABLED` | `false` | Master switch for the optional check 13 (preliminary rPPG signal proxy) — disabled by default, so 13 is always a no-op pass today. |
 | `FACE_PRELIMINARY_RPPG_MIN_GREEN_STD` / `MAX_GREEN_STD` | `0.8` / `30` | If check 13 were enabled, the acceptable stddev range of the green-channel signal. |
 
-### Artifact severity / pause / abort (`face_scan_artifact_policy.js`)
+### Artifact severity / abort (`face_scan_artifact_policy.js`)
+
+The recorder is never paused/resumed mid-take (uploaded videos must be one
+continuous recording) — these tiers only decide whether to keep recording
+through degraded quality or abort and discard the whole attempt.
 
 | Constant | Value | Impacts |
 |---|---|---|
 | `FRAMES_MINOR_MAX` | `4` | Consecutive fail samples at/below this stay "minor" tier — recording continues, just tracked in the quality timeline. |
-| `FRAMES_MODERATE_MAX` | `24` | Consecutive fail samples above minor and at/below this escalate to "moderate" — recorder pauses and `RECORD_TARGET_MS` is extended. |
-| `MAJOR_ABORT_STREAK` | `100` | Consecutive fail samples at/above this while in "major" tier (~12s at the 120ms sample interval) trigger `shouldAbortRecording` — discards the clip and auto-restarts the camera. Without this, a sustained total face loss would otherwise leave the recorder paused indefinitely. |
-| `RECORD_EXTENSION_PER_MODERATE_MS` | `2500` | Usable-duration extension (ms) added to the recording target each time a moderate-tier pause episode occurs. |
-| `RECORD_EXTENSION_MAX_MS` | `12000` | Cap on total extension a single recording can accumulate from moderate pauses. |
-| `MAX_ALLOWED_RECORDING_PAUSES_BEFORE_RESTART` (`face_scan_record_loop.js`) | `100` | Independent fallback: if the recorder is paused more than this many separate times in one recording, discard and auto-restart even if no single pause streak hit `MAJOR_ABORT_STREAK`. |
+| `FRAMES_MODERATE_MAX` | `24` | Consecutive fail samples above minor and at/below this escalate to "moderate" — recording continues, flagged as degraded (`isDegraded`) for UI guidance and metadata. |
+| `MAJOR_ABORT_STREAK` | `100` | Consecutive fail samples at/above this while in "major" tier (~12s at the 120ms sample interval) trigger `shouldAbortRecording` — discards the clip and auto-restarts the camera. Without this, a sustained total face loss would otherwise have nothing to stop a take that can never finish cleanly. |
 
 ### Encoding
 
@@ -138,8 +139,10 @@ site/demo/js/controller/face_scan_align_loop.js
 site/demo/js/controller/face_scan_record_loop.js
   Record-framing polling loop (tickCameraRecordFraming /
   startRecordFramingLoop / stopRecordFramingLoop): runs quality checks
-  during recording, pauses/resumes/aborts the MediaRecorder via the
-  artifact policy, tracks the recording-duration budget.
+  during recording and tracks the recording-duration budget. The recorder
+  is never paused/resumed mid-take (uploaded videos must be one continuous
+  recording) — degraded quality only flags UI guidance via the artifact
+  policy; only a sustained major artifact aborts and discards the take.
 
 site/demo/js/controller/face_scan_camera_fx.js
   Pure overlay rendering: face-scan-fx clip/target guide sync
@@ -168,8 +171,9 @@ site/demo/js/controller/face_scan_quality_helpers.js
 
 site/demo/js/controller/face_scan_artifact_policy.js
   Maps a failing quality check to a severity tier (minor/moderate/major)
-  based on consecutive-fail streaks, decides whether to pause/extend/abort
-  the active recording, and tracks the quality timeline segments.
+  based on consecutive-fail streaks, decides whether the active recording
+  is merely flagged as degraded or should abort entirely, and tracks the
+  quality timeline segments.
 
 site/demo/js/controller/face_scan_recording_controller.js
   MediaRecorder session lifecycle: start recording after countdown, chunk
@@ -185,8 +189,8 @@ site/demo/js/utils/face_scan_face_model.js
 site/demo/js/utils/face_scan_helpers.js
   Shared stateless utilities: object-fit:cover crop math
   (getCoverVisibleRegion), face-framing geometry (isFaceWellFramed,
-  computeFaceScanEllipse), recorder helpers (createRecorder, pickMimeType,
-  safeRecorderPause/Resume), placement UI text/state, camera-error messages.
+  computeFaceScanEllipse), recorder helpers (createRecorder, pickMimeType),
+  placement UI text/state, camera-error messages.
 
 site/demo/js/utils/face_scan_debug.js
   Structured console logging gated by a meta tag / URL flag, with dedupe
@@ -273,7 +277,11 @@ flow_controller: openScanPanelAndRequestCamera(camera)
                                 → recording.beginRecording() [face_scan_recording_controller.js]
 ```
 
-### 3. Recording → quality-gated pause/resume/abort → stop
+### 3. Recording → quality-gated, never paused → stop
+
+The recorder is never paused/resumed mid-take — an uploaded video must be one
+continuous recording from t=0 to the end. Degraded quality only changes the
+UI guidance; only a sustained major artifact stops and discards the take.
 
 ```
 recording.beginRecording()
@@ -284,14 +292,12 @@ recording.beginRecording()
           tickCameraRecordFraming:
             → H.detectSingleFace(preview) → evaluateFaceQuality(...)
             → quality.artifact.shouldAbortRecording?  → discard + auto-restart
-            → quality.artifact.shouldPauseRecorder?   → H.safeRecorderPause(rec)
-                                                          (+ pause-count guard →
-                                                           discard + auto-restart
-                                                           if over the limit)
-            → otherwise → H.safeRecorderResume(rec), update placement UI,
-                           accumulate recordBudgetAccumMs
-            → recordBudgetAccumMs >= target (base + artifact extensions)?
-                → rec.stop()
+            → quality.artifact.isDegraded?            → update placement UI
+                                                          to "bad", recording
+                                                          keeps running
+            → otherwise → update placement UI to "good"/"wait"
+            → in all non-abort cases → accumulate recordBudgetAccumMs
+            → recordBudgetAccumMs >= RECORD_TARGET_MS? → rec.stop()
   → ctx.recorder.onstop = createRecorderStopHandler(state, camera, resolve)
                                                         [face_scan_recording_controller.js]
 ```
