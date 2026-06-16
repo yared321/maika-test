@@ -221,18 +221,7 @@ High-level view of the 6 stages below, plus the one non-linear path: a
 sustained major quality failure during recording discards the clip and
 restarts alignment instead of continuing forward.
 
-```mermaid
-flowchart TD
-    A["App init<br/>demo.js, face_scan_flow_controller.js"]
-    B["Align and countdown<br/>camera_stream.js, align_loop.js"]
-    C["Recording, quality gated<br/>recording_controller.js, record_loop.js"]
-    D["Stop, then blob event<br/>onstop handler, flow_controller bridge"]
-    E["Upload<br/>upload_controller.js, service.js"]
-    F["Result rendered<br/>emotion_score_controller.js"]
-
-    A --> B --> C --> D --> E --> F
-    C -.->|discard + restart on major quality failure| B
-```
+![Face scan data flow: app init, align and countdown, quality-gated recording, stop to blob event, upload, result rendered, with a feedback loop from recording back to alignment on major quality failure](diagrams/face-scan-data-flow.svg)
 
 ### 1. Page load → flow controller ready (no camera yet)
 
@@ -383,28 +372,7 @@ confuse them:
 
 ## Module boundary / public contract
 
-```mermaid
-flowchart TB
-    FC["flow_controller.js"]
-    RC["recording_controller.js"]
-
-    subgraph CC["face_scan_camera_controller.js (composition root)"]
-        direction LR
-        S["Stream<br/>camera_stream.js"]
-        AL["Align loop<br/>align_loop.js"]
-        RL["Record loop<br/>record_loop.js"]
-        FX["Overlay fx<br/>camera_fx.js"]
-        DU["Detection utils<br/>detection_utils.js"]
-    end
-
-    QC["quality_checks.js"]
-    MR["mesh_renderer.js"]
-
-    FC --> CC
-    RC --> CC
-    CC --> QC
-    CC --> MR
-```
+![Camera controller module structure: flow_controller.js and recording_controller.js call into the face_scan_camera_controller.js composition root, which contains the stream, align loop, record loop, overlay fx, and detection utils modules, and depends on quality_checks.js and mesh_renderer.js](diagrams/camera-controller-module-structure.svg)
 
 The camera controller's public surface (`FaceScanCameraController.create(spec)`
 → object with `hideScanCameraStates`, `showCameraDeniedOverlay`,
