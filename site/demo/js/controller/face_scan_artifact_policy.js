@@ -7,8 +7,15 @@
 var FRAMES_MINOR_MAX = 4;
 /** Consecutive fail samples above minor and at or below this → moderate tier (pause). */
 var FRAMES_MODERATE_MAX = 24;
-/** Consecutive fail samples at or above this while major → shouldAbortRecording. */
-var MAJOR_ABORT_STREAK = 30;
+/**
+ * Consecutive fail samples at or above this while major → shouldAbortRecording.
+ * At the ~120ms align/record sample interval this is ~12s of sustained total face
+ * loss/occlusion. Kept well below the pause-count restart fallback in
+ * face_scan_camera_controller.js: a single continuous major episode only increments
+ * that pause counter once (on episode start), so without this streak gate a sustained
+ * total face loss would pause the recorder indefinitely with no recovery path.
+ */
+var MAJOR_ABORT_STREAK = 100;
 /** Usable-duration target increase per moderate pause episode. */
 var RECORD_EXTENSION_PER_MODERATE_MS = 2500;
 /** Cap on total extension added by moderate pauses. */

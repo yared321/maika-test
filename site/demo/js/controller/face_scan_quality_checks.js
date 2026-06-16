@@ -53,7 +53,18 @@ function check2FaceCentered(state, box) {
   return { check: check, ok: true };
 }
 
-/** Check 3: verifies detected face size stays within configured bounds. */
+/**
+ * Check 3: records detected face size (width fraction of the visible crop) for
+ * telemetry/debugging. This intentionally always returns `ok: true` — it is NOT
+ * a redundant/dead gate. Check 2 (`check2FaceCentered` -> `H.isFaceWellFramed`)
+ * already enforces the same `faceMinFrac`/`faceMaxFrac` width bound and early-exits
+ * the pipeline on failure before this function ever runs, so by the time we get
+ * here `sizeOk` is guaranteed true. This function exists only to log the precise
+ * width-fraction metric (`qualityCheck("3_face_size_in_range", ...)`) as its own
+ * entry in the quality trace/debug report, separate from check 2's combined
+ * centering+size+vertical-band result. Do not "fix" this into a second blocking
+ * gate — that would just duplicate check 2's behavior.
+ */
 function check3FaceSizeInRange(state, box) {
   var reg = H.getCoverVisibleRegion(state.el.preview);
   var widthFrac = reg ? box.width / reg.sw : null;
@@ -370,19 +381,30 @@ function runFaceQualityChecks(state, box, landmarks, metrics, nowMs) {
  * Runs the full face-quality gate and returns pass/fail with user-facing guidance.
  *
  * Included checks:
- * 1) face present
- * 2) face centered
- * 3) face size in range
- * 4) face approximately frontal
- * 5) forehead/cheeks/nose bridge visible
- * 6) brightness in range
- * 7) no overexposed skin
- * 8) no underexposed skin
- * 9) left/right illumination symmetry
- * 10) brightness stability over time
- * 11) low head motion
- * 12) stable frame rate
- * 13) optional preliminary rPPG signal quality
+ * 1) face present — blocking, see check1FacePresent.
+ * 2) face centered — blocking; also enforces the face-size bound (3) and a
+ *    vertical containment band, via H.isFaceWellFramed.
+ * 3) face size in range — non-blocking by design; telemetry-only restatement of
+ *    the size bound already enforced by check 2. See check3FaceSizeInRange.
+ * 4) face approximately frontal — blocking, see check4FacePoseFrontal.
+ * 5) forehead/cheeks/nose bridge visible — blocking, see check5AnatomyVisible.
+ * 6) brightness in range — blocking, see check6BrightnessInRange.
+ * 7) no overexposed skin — blocking, see check7NoOverexposedSkin.
+ * 8) no underexposed skin — blocking, see check8NoUnderexposedSkin.
+ * 9) left/right illumination symmetry — blocking, see check9LeftRightIlluminationSymmetric.
+ * 10) brightness stability over time — blocking once >=8 rolling samples exist;
+ *     a no-op pass while warming up. See evaluateTemporalQuality.
+ * 11) low head motion — blocking once >=6 rolling samples exist; no-op while
+ *     warming up. See evaluateTemporalQuality.
+ * 12) stable frame rate (fps + jitter) — blocking once >=8 rolling samples exist;
+ *     no-op while warming up. See evaluateTemporalQuality.
+ * 13) optional preliminary rPPG signal quality — disabled by default
+ *     (preliminaryRppgEnabled config flag); no-op until enough green-channel
+ *     samples accumulate.
+ *
+ * Checks run in order with an early exit on the first blocking failure, so the
+ * `checks` array returned on a failing sample may not contain every check id
+ * (e.g. checks 10-13 are skipped entirely if check 9 already failed).
  */
 export function evaluateFaceQuality(state, phase, box, landmarks, metrics, nowMs) {
   var result = runFaceQualityChecks(state, box, landmarks, metrics, nowMs);

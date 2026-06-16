@@ -13,6 +13,7 @@ const DEFAULT_MEDIAPIPE_LANDMARKER_MODEL_URL =
 
 let mediapipeDetector = null;
 let mediapipeLandmarker = null;
+let faceMeshTesselation = null;
 
 function normalizeMediaPipeModelType(v) {
   const t = String(v || "landmarker").toLowerCase();
@@ -82,6 +83,14 @@ export function getDetectorOptions() {
 
 export function isDetectionEnabled() {
   return config.enabled;
+}
+
+/**
+ * Returns the {start,end} index pairs for the 468-point face mesh wireframe,
+ * available once the landmarker model has loaded. Null otherwise.
+ */
+export function getFaceMeshTesselation() {
+  return faceMeshTesselation;
 }
 
 export function getProviderLabel() {
@@ -198,6 +207,9 @@ async function loadMediaPipe() {
   mediapipeLandmarker = null;
   if (modelType === "landmarker") {
     if (!vision.FaceLandmarker) throw new Error("mediapipe_face_landmarker_unavailable");
+    faceMeshTesselation = Array.isArray(vision.FaceLandmarker.FACE_LANDMARKS_TESSELATION)
+      ? vision.FaceLandmarker.FACE_LANDMARKS_TESSELATION
+      : null;
     try {
       mediapipeLandmarker = await vision.FaceLandmarker.createFromOptions(resolver, {
         baseOptions: baseOptions,
@@ -271,4 +283,5 @@ export const FaceScanFaceModel = {
   detectSingleFace: detectSingleFace,
   warmup: warmup,
   getProviderLabel: getProviderLabel,
+  getFaceMeshTesselation: getFaceMeshTesselation,
 };

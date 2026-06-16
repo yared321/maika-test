@@ -8,8 +8,9 @@ import {
   resetArtifactTimeline,
 } from "./face_scan_artifact_policy.js";
 import { evaluateFaceQuality } from "./face_scan_quality_checks.js";
+import { createFaceMeshRenderer } from "./face_scan_mesh_renderer.js";
 
-var MAX_ALLOWED_RECORDING_PAUSES_BEFORE_RESTART = 5;
+var MAX_ALLOWED_RECORDING_PAUSES_BEFORE_RESTART = 100;
 
 /**
  * Normalizes controller runtime state and guarantees quality-trace fields exist.
@@ -38,7 +39,28 @@ function createCameraControllerState(spec) {
     el: spec.elements,
     cfg: spec.config,
     bridges: spec.bridges || {},
+    faceMesh:
+      spec.elements.faceMeshCanvas && spec.elements.preview
+        ? createFaceMeshRenderer(spec.elements.faceMeshCanvas, spec.elements.preview)
+        : null,
   };
+}
+
+/** Hides/clears the face-mesh wireframe overlay. */
+function clearFaceMesh(state) {
+  if (state.el.faceMeshCanvas) state.el.faceMeshCanvas.classList.add("hidden");
+  if (state.faceMesh) state.faceMesh.clear();
+}
+
+/** Draws the face-mesh wireframe overlay for the current detection frame. */
+function syncFaceMesh(state, landmarks, ok) {
+  if (!state.faceMesh) return;
+  if (!landmarks || !landmarks.length) {
+    clearFaceMesh(state);
+    return;
+  }
+  if (state.el.faceMeshCanvas) state.el.faceMeshCanvas.classList.remove("hidden");
+  state.faceMesh.draw(landmarks, ok);
 }
 
 /**
@@ -321,6 +343,7 @@ function tickCameraRecordFraming(state) {
       "Recording — face guide off.",
     );
     syncFaceScanFx(state, null);
+    clearFaceMesh(state);
     if (recNoDet.state !== "recording") {
       state.ctx.recordBudgetLastSample = null;
       return;
@@ -367,6 +390,7 @@ function tickCameraRecordFraming(state) {
         metrics,
         now,
       );
+      syncFaceMesh(state, landmarks, !!(quality && quality.ok));
 
       // Primary restart trigger: sustained major artifact from policy.
       // Pause-count restart is an additional fallback trigger below.
@@ -480,6 +504,7 @@ function tickCameraRecordFraming(state) {
     .catch(function () {
       state.ctx.detectionInFlight = false;
       syncFaceScanFx(state, null);
+      clearFaceMesh(state);
     });
 }
 
@@ -504,6 +529,7 @@ function tickAlignment(state) {
     stopAlignLoop(state);
     state.ctx.phase = "countdown";
     syncFaceScanFx(state, null);
+    clearFaceMesh(state);
     H.setPlacementUi(state.el.placementStatus, "wait", "Starting…");
     runCountdownThenRecord(state);
     return;
@@ -526,6 +552,7 @@ function tickAlignment(state) {
         metrics,
         performance.now(),
       );
+      syncFaceMesh(state, landmarks, quality.ok);
 
       if (quality.ok) {
         state.ctx.placementStableHits++;
@@ -547,6 +574,7 @@ function tickAlignment(state) {
           stopAlignLoop(state);
           state.ctx.phase = "countdown";
           syncFaceScanFx(state, null);
+          clearFaceMesh(state);
           H.setPlacementUi(state.el.placementStatus, "wait", "Starting…");
           runCountdownThenRecord(state);
         }
@@ -564,6 +592,7 @@ function tickAlignment(state) {
     })
     .catch(function () {
       syncFaceScanFx(state, null);
+      clearFaceMesh(state);
     });
 }
 
@@ -634,11 +663,14 @@ function cancelCountdown(state) {
 
 /** Stops loops, closes media tracks, and resets camera runtime to idle. */
 function stopStream(state) {
+  state.ctx.streamRequestGen = (state.ctx.streamRequestGen || 0) + 1;
   stopRecordFramingLoop(state);
   stopAlignLoop(state);
   state.ctx.detectionInFlight = false;
+  if (state.el.preview) state.el.preview.onloadeddata = null;
   if (state.ctx.stream) {
     state.ctx.stream.getTracks().forEach(function (t) {
+      t.onended = null;
       t.stop();
     });
     state.ctx.stream = null;
@@ -648,6 +680,7 @@ function stopStream(state) {
   if (state.el.placementStatus) H.setPlacementUi(state.el.placementStatus, "wait", "…");
   state.ctx.phase = "idle";
   syncFaceScanFx(state, null);
+  clearFaceMesh(state);
 }
 
 /**
@@ -665,6 +698,7 @@ function stopStream(state) {
  * This is the single entry point for camera startup in the scan flow.
  */
 function requestCameraAndStartAlignment(state) {
+  if (state.ctx.cameraRequestInFlight) return;
   if (state.bridges.hideError) state.bridges.hideError();
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showCameraDeniedOverlay(state, "Camera needs HTTPS or localhost.");
@@ -677,6 +711,8 @@ function requestCameraAndStartAlignment(state) {
     state.el.scanOverlayCameraText.textContent = "Requesting camera access…";
   }
 
+  state.ctx.cameraRequestInFlight = true;
+  var myGen = (state.ctx.streamRequestGen = (state.ctx.streamRequestGen || 0) + 1);
   state.ctx.phase = "align";
   navigator.mediaDevices
     .getUserMedia({
@@ -689,7 +725,21 @@ function requestCameraAndStartAlignment(state) {
       audio: false,
     })
     .then(function (mediaStream) {
+      if (state.ctx.streamRequestGen !== myGen) {
+        // A stopStream()/newer request happened while permission was pending; discard.
+        mediaStream.getTracks().forEach(function (t) {
+          t.stop();
+        });
+        return Promise.reject(new Error("face_scan_stale_stream_request"));
+      }
       state.ctx.stream = mediaStream;
+      mediaStream.getVideoTracks().forEach(function (t) {
+        t.onended = function () {
+          if (state.ctx.streamRequestGen !== myGen) return;
+          showCameraDeniedOverlay(state, "Camera disconnected. Please reconnect and retry.");
+          stopStream(state);
+        };
+      });
       if (state.el.preview) state.el.preview.srcObject = mediaStream;
       if (state.el.scanOverlayCamera) state.el.scanOverlayCamera.classList.add("hidden");
       if (state.el.scanOverlayDenied) state.el.scanOverlayDenied.classList.add("hidden");
@@ -711,10 +761,14 @@ function requestCameraAndStartAlignment(state) {
       });
     })
     .then(function () {
+      state.ctx.cameraRequestInFlight = false;
+      if (state.ctx.streamRequestGen !== myGen) return;
       if (state.bridges.onCameraReady) state.bridges.onCameraReady();
       startAlignLoop(state);
     })
     .catch(function (e) {
+      state.ctx.cameraRequestInFlight = false;
+      if (state.ctx.streamRequestGen !== myGen) return;
       showCameraDeniedOverlay(state, H.friendlyCameraMessage(e));
       state.ctx.phase = "idle";
     });

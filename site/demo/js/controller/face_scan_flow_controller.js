@@ -116,6 +116,7 @@ function getDomReferences() {
     scanIntro: H.byId("scan-intro"),
     panelResult: H.byId("panel-result"),
     preview: H.byId("preview"),
+    faceMeshCanvas: H.byId("face-scan-mesh"),
     videoWrap: H.byId("video-wrap"),
     scanRecovery: H.byId("scan-recovery"),
     scanRecoveryMessage: H.byId("scan-recovery-message"),
@@ -727,6 +728,7 @@ function createCameraController(recording) {
     ctx: context,
     elements: {
       preview: cameraDOM.preview,
+      faceMeshCanvas: cameraDOM.faceMeshCanvas,
       placementStatus: cameraDOM.placementStatus,
       scanOverlayCamera: cameraDOM.scanOverlayCamera,
       scanOverlayDenied: cameraDOM.scanOverlayDenied,
