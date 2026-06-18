@@ -1,5 +1,5 @@
-import * as H from "../utils/face_scan_helpers.js";
-import { applyArtifactPolicy } from "./face_scan_artifact_policy.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import { applyArtifactPolicy } from "./artifact_policy.js";
 import {
   collectQualityTraces,
   evaluatePoseCheck,
@@ -11,7 +11,7 @@ import {
   resolveFaceMaxMeanLuminance,
   resolveFaceMinMeanLuminance,
   resolveGuideMessage,
-} from "./face_scan_quality_helpers.js";
+} from "./quality_helpers.js";
 
 /**
  * Check 1: verifies exactly one face was detected in the current frame.

@@ -1,5 +1,5 @@
-import * as H from "../utils/face_scan_helpers.js";
-import * as Dbg from "../utils/face_scan_debug.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import * as Dbg from "../../utils/face_scan/debug.js";
 
 /** Resolves the minimum allowed face luminance from config with fallback defaults. */
 export function resolveFaceMinMeanLuminance(cfg) {

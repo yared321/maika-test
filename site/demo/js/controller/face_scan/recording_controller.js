@@ -1,21 +1,21 @@
 /**
  * MediaRecorder session: chunks, timer pill, start after countdown, stop → blob + upload bridge.
  */
-import * as H from "../utils/face_scan_helpers.js";
-import * as Dbg from "../utils/face_scan_debug.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import * as Dbg from "../../utils/face_scan/debug.js";
 import {
   finalizeArtifactTimeline,
   getEffectiveRecordTargetMs,
-} from "./face_scan_artifact_policy.js";
-import { FaceScanUpload } from "../service/service.js";
+} from "./artifact_policy.js";
+import { FaceScanUpload } from "../../service/service.js";
 import {
   resetFpsRecordingSamples,
   finalizeFpsRecordingMetadata,
-} from "./face_scan_fps_monitor.js";
+} from "./fps_monitor.js";
 import {
   initRecordCollector,
   finalizeRecordCollector,
-} from "./face_scan_record_collector.js";
+} from "./record_collector.js";
 
 /** Extracts the codec list from a MediaRecorder MIME type string, if present. */
 function parseCodecFromMimeType(mimeType) {

@@ -3,8 +3,8 @@
  * scan animation: progressive left→right mesh build, vertical sweep bar, then
  * sparse glowing tracking dots, then fade — looping continuously.
  */
-import { getCoverVisibleRegion } from "../utils/face_scan_helpers.js";
-import { FaceScanFaceModel } from "../utils/face_scan_face_model.js";
+import { getCoverVisibleRegion } from "../../utils/face_scan/helpers.js";
+import { FaceScanFaceModel } from "../../utils/face_scan/face_model.js";
 
 // Brand colors
 var COLOR_BASE = "223, 122, 254";   // purple (aligning)

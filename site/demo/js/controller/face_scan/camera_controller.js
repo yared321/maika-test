@@ -21,26 +21,26 @@
  * behavior, find the concern above first — this file should stay a thin
  * composition layer.
  */
-import { createFaceMeshRenderer } from "./face_scan_mesh_renderer.js";
+import { createFaceMeshRenderer } from "./mesh_renderer.js";
 import {
   requestCameraAndStartAlignment,
   stopStream,
-} from "./face_scan_camera_stream.js";
+} from "./camera_stream.js";
 import {
   startAlignLoop,
   stopAlignLoop,
   runCountdownThenRecord,
   cancelCountdown,
-} from "./face_scan_align_loop.js";
+} from "./align_loop.js";
 import {
   startRecordFramingLoop,
   stopRecordFramingLoop,
-} from "./face_scan_record_loop.js";
+} from "./record_loop.js";
 import {
   syncFaceScanFx,
   hideScanCameraStates,
   showCameraDeniedOverlay,
-} from "./face_scan_camera_fx.js";
+} from "./camera_fx.js";
 
 /**
  * Normalizes controller runtime state and guarantees quality-trace fields exist.

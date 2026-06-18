@@ -18,14 +18,14 @@ import {
   stopUploadPulse,
   syncFaceStepNextGate,
   syncRecordAgainButton,
-} from "./controller/face_scan_upload_controller.js";
+} from "./controller/face_scan/upload_controller.js";
 
 import {
   initFaceScanFlow,
   resetFaceScanFlowForLanding,
   restartFaceScanForNewRecording,
   setFaceScanConsentRequired,
-} from "./controller/face_scan_flow_controller.js";
+} from "./controller/face_scan/flow_controller.js";
 import { MUSIC_HISTOGRAM_WINDOW_SEC } from "./controller/music_waveform_renderer.js";
 import { syncWizardNextButton } from "./controller/wizard_nav_controller.js";
 import {

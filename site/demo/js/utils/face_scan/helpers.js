@@ -8,7 +8,7 @@ import {
   detectSingleFace as detectSingleFaceFromModel,
   detectSingleFaceForRecord as detectSingleFaceForRecordFromModel,
   ensureRecordDetectorLoaded as ensureRecordDetectorLoadedFromModel,
-} from "./face_scan_face_model.js";
+} from "./face_model.js";
 
 /**
  * `document.getElementById` shorthand.

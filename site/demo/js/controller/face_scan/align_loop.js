@@ -3,15 +3,15 @@
  * transition into the 3-2-1 countdown once alignment is stable. Owns the
  * countdown timer too, since it's the direct continuation of "alignment passed".
  */
-import * as H from "../utils/face_scan_helpers.js";
-import * as Dbg from "../utils/face_scan_debug.js";
-import { evaluateFaceQuality } from "./face_scan_quality_checks.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import * as Dbg from "../../utils/face_scan/debug.js";
+import { evaluateFaceQuality } from "./quality_checks.js";
 import {
   extractBoxFromDetection,
   extractFaceCountFromDetection,
   extractLandmarksFromDetection,
-} from "./face_scan_detection_utils.js";
-import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./face_scan_camera_fx.js";
+} from "./detection_utils.js";
+import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./camera_fx.js";
 
 /** Stops the alignment polling interval if it is active. */
 export function stopAlignLoop(state) {

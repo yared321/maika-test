@@ -2,13 +2,13 @@
  * Face scan runtime flow:
  * start camera -> align -> countdown -> record -> emit blob-ready event.
  */
-import * as H from "../utils/face_scan_helpers.js";
-import * as Dbg from "../utils/face_scan_debug.js";
-import { FaceScanFaceModel } from "../utils/face_scan_face_model.js";
-import { FaceScanCameraController } from "./face_scan_camera_controller.js";
-import { FaceScanRecordingController } from "./face_scan_recording_controller.js";
-import { FaceScanUpload } from "../service/service.js";
-import { stopMusicPlayback } from "./music_stream_controller.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import * as Dbg from "../../utils/face_scan/debug.js";
+import { FaceScanFaceModel } from "../../utils/face_scan/face_model.js";
+import { FaceScanCameraController } from "./camera_controller.js";
+import { FaceScanRecordingController } from "./recording_controller.js";
+import { FaceScanUpload } from "../../service/service.js";
+import { stopMusicPlayback } from "../music_stream_controller.js";
 
 /** Fade out background music when face recording finishes (blob ready), not when starting the camera. */
 var MUSIC_FADE_MS_AFTER_RECORDING_COMPLETE = 5000;

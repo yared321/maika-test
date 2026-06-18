@@ -2,7 +2,7 @@
  * MediaPipe-only face model config and loader.
  */
 
-import * as Dbg from "./face_scan_debug.js";
+import * as Dbg from "./debug.js";
 
 const DEFAULT_MEDIAPIPE_JS_CDN =
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";

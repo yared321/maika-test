@@ -16,8 +16,8 @@
  * measurement (that's a separate, not-yet-built piece of work) — treat
  * `baselineFps` as a rough warmup-time signal, not the precise metric.
  */
-import * as H from "../utils/face_scan_helpers.js";
-import * as Dbg from "../utils/face_scan_debug.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import * as Dbg from "../../utils/face_scan/debug.js";
 
 /** Builds a synthetic center-crop box (50% width/height) for ambient sampling. */
 function buildCenterBox(reg) {

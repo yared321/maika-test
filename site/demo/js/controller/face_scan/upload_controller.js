@@ -3,9 +3,9 @@ import {
   postRecording,
   resolveEndpoint,
   ASSESS_PATHS,
-} from "../service/service.js";
-import { applyDefaultDemographics } from "./demographic_form_controller.js";
-import { syncWizardNextButton } from "./wizard_nav_controller.js";
+} from "../../service/service.js";
+import { applyDefaultDemographics } from "../demographic_form_controller.js";
+import { syncWizardNextButton } from "../wizard_nav_controller.js";
 
 /**
  * Read arousal from an API assessment payload.

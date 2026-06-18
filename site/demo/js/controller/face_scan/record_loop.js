@@ -5,20 +5,20 @@
  * paused/resumed — uploaded videos must be one continuous take). Also owns
  * the recording-duration budget bookkeeping.
  */
-import * as H from "../utils/face_scan_helpers.js";
-import * as Dbg from "../utils/face_scan_debug.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import * as Dbg from "../../utils/face_scan/debug.js";
 import {
   getEffectiveRecordTargetMs,
   resetArtifactTimeline,
-} from "./face_scan_artifact_policy.js";
-import { evaluateFaceQuality } from "./face_scan_quality_checks.js";
+} from "./artifact_policy.js";
+import { evaluateFaceQuality } from "./quality_checks.js";
 import {
   extractBoxFromDetection,
   extractFaceCountFromDetection,
   extractLandmarksFromDetection,
-} from "./face_scan_detection_utils.js";
-import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./face_scan_camera_fx.js";
-import { collectRecordTick } from "./face_scan_record_collector.js";
+} from "./detection_utils.js";
+import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./camera_fx.js";
+import { collectRecordTick } from "./record_collector.js";
 
 /** Resets recording-only timers, flags, and rolling quality histories. */
 function resetRecordingBudget(state) {

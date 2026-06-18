@@ -3,7 +3,7 @@
  * the face-mesh wireframe, plus the camera-loading/denied overlay toggles.
  * Pure UI sync from detection state — never touches the stream or recorder.
  */
-import * as H from "../utils/face_scan_helpers.js";
+import * as H from "../../utils/face_scan/helpers.js";
 
 /** Hides camera-loading and camera-error overlays without changing stream state. */
 export function hideScanCameraStates(state) {

@@ -4,12 +4,12 @@
  * the generation counter that discards stale getUserMedia resolutions, and
  * the track.onended disconnect handler.
  */
-import * as H from "../utils/face_scan_helpers.js";
-import { startAlignLoop, stopAlignLoop } from "./face_scan_align_loop.js";
-import { stopRecordFramingLoop } from "./face_scan_record_loop.js";
-import { syncFaceScanFx, clearFaceMesh, showCameraDeniedOverlay } from "./face_scan_camera_fx.js";
-import { startWarmup, stopWarmup } from "./face_scan_warmup.js";
-import { startFpsMonitor, stopFpsMonitor } from "./face_scan_fps_monitor.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import { startAlignLoop, stopAlignLoop } from "./align_loop.js";
+import { stopRecordFramingLoop } from "./record_loop.js";
+import { syncFaceScanFx, clearFaceMesh, showCameraDeniedOverlay } from "./camera_fx.js";
+import { startWarmup, stopWarmup } from "./warmup.js";
+import { startFpsMonitor, stopFpsMonitor } from "./fps_monitor.js";
 
 /** Parses browser name + version and OS from the user-agent string. */
 function parseDeviceInfo() {
