@@ -430,6 +430,12 @@
 
   /* Wide pill + slightly smaller type so status stays ~2 lines inside the frame. */
   @media (max-width: 540px) {
+    .fps-skip-banner {
+      bottom: calc(10px + 4.1rem);
+      width: calc(100% - 24px);
+      max-width: calc(100% - 24px);
+    }
+
     .placement-status {
       width: calc(100% - 24px);
       max-width: calc(100% - 24px);
@@ -837,34 +843,33 @@
   }
 
   .fps-skip-banner {
-    margin-top: 0.6rem;
-    padding: 0.65rem 0.9rem;
-    border-radius: 10px;
-    background: rgba(255, 195, 80, 0.10);
-    border: 1px solid rgba(255, 195, 80, 0.36);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    text-align: center;
-  }
-
-  .fps-skip-message {
+    position: absolute;
+    left: 50%;
+    bottom: calc(10px + 3.6rem);
+    transform: translateX(-50%);
+    z-index: 19;
     margin: 0;
-    font-size: 0.82rem;
-    color: rgba(255, 220, 120, 0.88);
-    line-height: 1.4;
+    padding: 0;
+    border: none;
+    background: transparent;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    max-width: calc(100% - 28px);
+    width: calc(100% - 28px);
   }
 
   .btn-fps-skip {
+    pointer-events: auto;
     font-size: 0.82rem;
-    padding: 0.38rem 1rem;
-    border-radius: 8px;
-    background: rgba(255, 195, 80, 0.14);
-    border: 1px solid rgba(255, 195, 80, 0.45);
-    color: rgba(255, 220, 120, 0.95);
+    padding: 0.45rem 1.05rem;
+    border-radius: 999px;
+    background: rgba(26, 14, 4, 0.88);
+    border: 1px solid rgba(255, 195, 80, 0.55);
+    color: rgba(255, 220, 120, 0.98);
     cursor: pointer;
     white-space: nowrap;
+    box-shadow: 0 10px 22px rgba(4, 6, 14, 0.45);
   }
 
   .btn-fps-skip:hover {

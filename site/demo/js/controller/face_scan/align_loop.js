@@ -149,6 +149,10 @@ export function startAlignLoop(state) {
   state.ctx.placementStableHits = 0;
   state.ctx.alignMeshTick = 0;
   state.ctx.alignStartedAt = performance.now();
+  state.ctx.skipFpsGate = false;
+  if (state.el.fpsScanSkipBanner) {
+    state.el.fpsScanSkipBanner.classList.add("hidden");
+  }
   state.ctx.quality.brightnessHistory = [];
   state.ctx.quality.greenHistory = [];
   state.ctx.quality.frameDtHistory = [];

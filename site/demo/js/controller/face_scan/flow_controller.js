@@ -832,6 +832,7 @@ function createCameraController(recording) {
       faceScanTarget: cameraDOM.faceScanTarget,
       overlayCountdown: cameraDOM.overlayCountdown,
       countdownNumber: cameraDOM.countdownNumber,
+      fpsScanSkipBanner: cameraDOM.fpsScanSkipBanner,
     },
     config: {
       warmupDurationMs: WARMUP_DURATION_MS,
