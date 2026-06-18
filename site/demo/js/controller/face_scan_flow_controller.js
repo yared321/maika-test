@@ -25,8 +25,10 @@ var PHONE_RECORD_LUMINANCE_CHECKS_ENABLED = false;
 var PHONE_RECORD_MESH_ENABLED = false;
 var STABLE_HIT_COUNT = 4;
 var MIN_ALIGN_MS = 5000;
-var FACE_MIN_FRAC = 0.12;
-var FACE_MAX_FRAC = 0.86;
+var FACE_MIN_FRAC = 0.40;
+var FACE_MAX_FRAC = 0.72;
+var FACE_PREFERRED_MIN_FRAC = 0.55;
+var FACE_PREFERRED_MAX_FRAC = 0.65;
 var FACE_MAX_MEAN_LUMINANCE = 210;
 var FACE_MAX_OVEREXPOSED_RATIO = 0.1;
 var FACE_MAX_UNDEREXPOSED_RATIO = 0.22;
@@ -407,6 +409,8 @@ function bootstrapModels() {
     qualityThresholds: {
       faceMinFrac: FACE_MIN_FRAC,
       faceMaxFrac: FACE_MAX_FRAC,
+      facePreferredMinFrac: FACE_PREFERRED_MIN_FRAC,
+      facePreferredMaxFrac: FACE_PREFERRED_MAX_FRAC,
       minLuminance: H.DEFAULT_FACE_MIN_MEAN_LUMINANCE,
       maxLuminance: FACE_MAX_MEAN_LUMINANCE,
       preliminaryRppgMinGreenStd: FACE_PRELIMINARY_RPPG_MIN_GREEN_STD,
@@ -845,6 +849,8 @@ function createCameraController(recording) {
       minAlignMs: MIN_ALIGN_MS,
       faceMinFrac: FACE_MIN_FRAC,
       faceMaxFrac: FACE_MAX_FRAC,
+      facePreferredMinFrac: FACE_PREFERRED_MIN_FRAC,
+      facePreferredMaxFrac: FACE_PREFERRED_MAX_FRAC,
       recordTargetMs: RECORD_TARGET_MS,
       recordMaxWallClockMs: RECORD_MAX_WALL_CLOCK_MS,
       faceMinMeanLuminance: H.DEFAULT_FACE_MIN_MEAN_LUMINANCE,

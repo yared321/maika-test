@@ -85,7 +85,21 @@ function check3FaceSizeInRange(state, box) {
     minFrac: state.cfg.faceMinFrac,
     maxFrac: state.cfg.faceMaxFrac,
   });
-  return { check: check, ok: true };
+
+  // Soft preferred-width warning (55–65%): passes the hard gate but nudges the
+  // user toward the ideal framing range without blocking the countdown.
+  var widthWarning = null;
+  if (sizeOk && widthFrac != null) {
+    var prefMin = state.cfg.facePreferredMinFrac || 0.55;
+    var prefMax = state.cfg.facePreferredMaxFrac || 0.65;
+    if (widthFrac < prefMin) {
+      widthWarning = "Move a little closer for best quality.";
+    } else if (widthFrac > prefMax) {
+      widthWarning = "Move a little further back for best quality.";
+    }
+  }
+
+  return { check: check, ok: true, widthWarning: widthWarning };
 }
 
 /** Check 4: verifies face pose is approximately frontal. */
@@ -340,6 +354,7 @@ function runFaceQualityChecks(state, phase, box, landmarks, metrics, nowMs, face
 
   var c3 = check3FaceSizeInRange(state, box);
   checks.push(c3.check);
+  var widthWarning = c3.widthWarning || null;
 
   var c4 = check4FacePoseFrontal(state, box, landmarks);
   checks.push(c4.check);
@@ -414,6 +429,7 @@ function runFaceQualityChecks(state, phase, box, landmarks, metrics, nowMs, face
     fpsLow: !!temporal.fpsLow,
     fpsTier: temporal.fpsTier || null,
     fpsWarning: temporal.fpsWarning || null,
+    widthWarning: widthWarning,
   };
 }
 

@@ -161,8 +161,8 @@ export function isFaceWellFramed(box, video, faceMinFrac, faceMaxFrac) {
   var cyView = box.y + box.height / 2;
   var cx0 = reg.sx + reg.sw / 2;
   var cy0 = reg.sy + reg.sh / 2;
-  if (Math.abs(cxView - cx0) > reg.sw * 0.38) return false;
-  if (Math.abs(cyView - cy0) > reg.sh * 0.42) return false;
+  if (Math.abs(cxView - cx0) > reg.sw * 0.28) return false;
+  if (Math.abs(cyView - cy0) > reg.sh * 0.30) return false;
   if (box.width < reg.sw * faceMinFrac || box.width > reg.sw * faceMaxFrac)
     return false;
 

@@ -83,8 +83,9 @@ export function tickAlignment(state) {
           Dbg.logFaceScanStep("align: first stable quality pass");
         }
         var msg;
-        if (quality.fpsWarning) {
-          msg = quality.fpsWarning;
+        var softWarning = quality.fpsWarning || quality.widthWarning || null;
+        if (softWarning) {
+          msg = softWarning;
         } else {
           msg =
             state.ctx.placementStableHits >= state.cfg.stableHitCount - 1
@@ -93,7 +94,7 @@ export function tickAlignment(state) {
                 ? "Looking good."
                 : "Face aligned — hold still.";
         }
-        H.setPlacementUi(state.el.placementStatus, quality.fpsWarning ? "wait" : "good", msg);
+        H.setPlacementUi(state.el.placementStatus, softWarning ? "wait" : "good", msg);
         var minAlignMs = Number(state.cfg.minAlignMs) || 0;
         var alignElapsed = performance.now() - (state.ctx.alignStartedAt || 0);
         var minAlignReached = alignElapsed >= minAlignMs;
