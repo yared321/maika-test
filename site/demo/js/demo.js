@@ -128,6 +128,7 @@ function createInitialState(stepCount) {
       latestResult: null,
       baselineArousal: null,
       postArousal: null,
+      baselineToken: null,
     },
     emotionViz: {
       xAxisValencePercent: VALENCE_X_AXIS_DEFAULT,

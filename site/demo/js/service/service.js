@@ -2,8 +2,11 @@
  * Minimal face scan uploader (module version).
  */
 
-const SAME_ORIGIN_PROXY_ENDPOINT = "/api/face-assess/v1/web/assess";
-const DEFAULT_TIMEOUT_MS = 120000;
+const PROXY_BASE              = "/api/face-assess";
+const ENDPOINT_ASSESS         = "/v1/web/assess";
+const ENDPOINT_ASSESS_BASELINE = "/v1/web/assess-baseline";
+const ENDPOINT_ASSESS_POST    = "/v1/web/assess-post";
+const DEFAULT_TIMEOUT_MS      = 180000;
 const UPLOAD_FORMDATA_FIELD = "video";
 
 const STATIC_FIELDS = {
@@ -55,15 +58,22 @@ export function generateFaceScanRequestId() {
   return `${t}-${r}`;
 }
 
-// Resolve upload endpoint using a same-origin proxy route.
-// Secrets and upstream auth headers should be injected server-side by that proxy.
-export function resolveEndpoint() {
+// Resolve a proxy-routed upload endpoint by path.
+// Pass one of ENDPOINT_ASSESS_BASELINE / ENDPOINT_ASSESS_POST / ENDPOINT_ASSESS,
+// or omit to get the compatibility single-step endpoint.
+export function resolveEndpoint(path) {
   try {
-    return new URL(SAME_ORIGIN_PROXY_ENDPOINT, globalThis.location.href).href;
+    return new URL(PROXY_BASE + (path || ENDPOINT_ASSESS), globalThis.location.href).href;
   } catch (e) {
     return "";
   }
 }
+
+export const ASSESS_PATHS = {
+  baseline: ENDPOINT_ASSESS_BASELINE,
+  post: ENDPOINT_ASSESS_POST,
+  single: ENDPOINT_ASSESS,
+};
 
 // Ensure the video blob uses a consistent video format mp4/webm type for upload.
 // If the input blob is already the desired type, it is returned unchanged.
@@ -155,6 +165,10 @@ export function postRecording(blob, endpointUrl, options) {
   formData.append("sex", normalizedSex);
   formData.append("consent", consentFieldValue);
   formData.append("request_id", requestIdFieldValue);
+  const baselineToken = options && options.baselineToken
+    ? String(options.baselineToken).trim()
+    : "";
+  if (baselineToken) formData.append("baseline_token", baselineToken);
   formData.append(
     FaceScanUpload.fieldName,
     videoBlob,

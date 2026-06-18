@@ -2,6 +2,7 @@ import {
   generateFaceScanRequestId,
   postRecording,
   resolveEndpoint,
+  ASSESS_PATHS,
 } from "../service/service.js";
 import { applyDefaultDemographics } from "./demographic_form_controller.js";
 import { syncWizardNextButton } from "./wizard_nav_controller.js";
@@ -201,7 +202,21 @@ export async function startFaceUpload(dom, state, setWizardError) {
     return;
   }
 
-  const endpoint = resolveEndpoint();
+  const scanPhase =
+    state.currentStep === 0 ? "baseline" : state.currentStep === 2 ? "post" : null;
+
+  // Two-step flow: baseline → -baseline endpoint; post → -post endpoint (with token)
+  // if no token is available yet, fall back to the single-step /assess endpoint.
+  const baselineToken = scanPhase === "post"
+    ? (state.assessment.baselineToken || "")
+    : "";
+  const endpointPath = scanPhase === "baseline"
+    ? ASSESS_PATHS.baseline
+    : scanPhase === "post" && baselineToken
+      ? ASSESS_PATHS.post
+      : ASSESS_PATHS.single;
+
+  const endpoint = resolveEndpoint(endpointPath);
   if (!endpoint) {
     failFaceUpload(
       dom,
@@ -212,9 +227,6 @@ export async function startFaceUpload(dom, state, setWizardError) {
     );
     return;
   }
-
-  const scanPhase =
-    state.currentStep === 0 ? "baseline" : state.currentStep === 2 ? "post" : null;
 
   state.upload.isInFlight = true;
   setWizardError(dom, "");
@@ -229,6 +241,7 @@ export async function startFaceUpload(dom, state, setWizardError) {
       sex: sex,
       consent: true,
       requestId: generateFaceScanRequestId(),
+      baselineToken: baselineToken || undefined,
     });
 
     if (uploadResult.ok) {
@@ -240,6 +253,9 @@ export async function startFaceUpload(dom, state, setWizardError) {
         const arousal = extractArousalFromResult(uploadResult.data);
         if (scanPhase === "baseline") {
           state.assessment.baselineArousal = arousal;
+          // Store baseline_token in memory for the post upload
+          const token = uploadResult.data.baseline_token;
+          state.assessment.baselineToken = typeof token === "string" && token ? token : null;
         } else if (scanPhase === "post") {
           state.assessment.postArousal = arousal;
         }
