@@ -17,7 +17,14 @@ var WARMUP_DURATION_MS = 2500;
 var RECORD_TARGET_MS = 30000;
 var RECORD_MAX_WALL_CLOCK_MS = 45000;
 var ALIGN_INTERVAL_MS = 120;
+/** Phone-only: slower record quality-sample cadence (desktop matches align at 120ms). */
+var RECORD_FRAMING_INTERVAL_MS_PHONE = 350;
+/** Trial toggle: record-phase checks 6–9 on phone (BlazeFace + 350ms still on). */
+var PHONE_RECORD_LUMINANCE_CHECKS_ENABLED = false;
+/** Trial toggle: face-mesh overlay during phone record (needs Landmarker, not BlazeFace). */
+var PHONE_RECORD_MESH_ENABLED = false;
 var STABLE_HIT_COUNT = 4;
+var MIN_ALIGN_MS = 5000;
 var FACE_MIN_FRAC = 0.12;
 var FACE_MAX_FRAC = 0.86;
 var FACE_MAX_MEAN_LUMINANCE = 210;
@@ -26,8 +33,9 @@ var FACE_MAX_UNDEREXPOSED_RATIO = 0.22;
 var FACE_MAX_SIDE_LUMA_ASYMMETRY = 0.32;
 var FACE_MAX_BRIGHTNESS_STD = 15;
 var FACE_MAX_HEAD_MOTION_FRAC_PER_SAMPLE = 0.028;
-var FACE_MIN_STABLE_FPS = 7;
-var FACE_MAX_FRAME_DT_STD_RATIO = 0.45;
+var FACE_MIN_STABLE_FPS = 15;
+/** Retuned for rVFC-backed ~30fps intervals (was 0.45 for 120ms poll cadence). */
+var FACE_MAX_FRAME_DT_STD_RATIO = 0.85;
 var FACE_POSE_RATIO_MIN = 0.65;
 var FACE_POSE_RATIO_MAX = 1.35;
 var FACE_MAX_LANDMARK_ROLL_RATIO = 0.18;
@@ -40,8 +48,13 @@ var FACE_PRELIMINARY_RPPG_MIN_GREEN_STD = 0.8;
 var FACE_PRELIMINARY_RPPG_MAX_GREEN_STD = 30;
 var RECORD_VIDEO_BPS_MP4 = 2200000;
 var RECORD_VIDEO_BPS_WEBM = 1800000;
+/** Lower encode load on phones (desktop keeps 2.2 Mbps MP4). */
+var RECORD_VIDEO_BPS_MP4_MOBILE = 1200000;
+var RECORD_VIDEO_BPS_WEBM_MOBILE = 1000000;
 var DEFAULT_QUALITY_RESTART_MESSAGE =
   "We paused because the signal was unstable. Adjust your setup, then restart when ready.";
+/** After this many quality-triggered retries, offer the user a "Skip scan" escape hatch. */
+var SKIP_SCAN_OFFER_AFTER_RETRIES = 3;
 
 function readMetaContent(name) {
   var el = document.querySelector('meta[name="' + name + '"]');
@@ -54,6 +67,53 @@ function readMetaNumber(name) {
   if (!raw) return null;
   var value = Number(raw);
   return Number.isFinite(value) ? value : null;
+}
+
+function isLikelyPhoneRecordingDevice() {
+  if (
+    typeof navigator !== "undefined" &&
+    navigator.userAgentData &&
+    navigator.userAgentData.mobile
+  ) {
+    return true;
+  }
+  if (typeof window !== "undefined" && window.matchMedia) {
+    return (
+      window.matchMedia("(pointer: coarse)").matches &&
+      window.matchMedia("(hover: none)").matches
+    );
+  }
+  return false;
+}
+
+function getRecordVideoBitrates() {
+  if (isLikelyPhoneRecordingDevice()) {
+    return {
+      mp4: RECORD_VIDEO_BPS_MP4_MOBILE,
+      webm: RECORD_VIDEO_BPS_WEBM_MOBILE,
+    };
+  }
+  return { mp4: RECORD_VIDEO_BPS_MP4, webm: RECORD_VIDEO_BPS_WEBM };
+}
+
+/** Phone-only recording/align perf tuning; desktop keeps full-quality paths. */
+function getDevicePerfConfig() {
+  var isPhone = isLikelyPhoneRecordingDevice();
+  var recordFramingMs = isPhone ? RECORD_FRAMING_INTERVAL_MS_PHONE : ALIGN_INTERVAL_MS;
+  return {
+    isPhone: isPhone,
+    recordFramingIntervalMs: recordFramingMs,
+    majorAbortStreak: isPhone
+      ? Math.max(1, Math.round((100 * ALIGN_INTERVAL_MS) / recordFramingMs))
+      : 100,
+    useDetectorDuringRecord: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    skipMeshDuringRecord: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    skipRecordLuminanceChecks: isPhone && !PHONE_RECORD_LUMINANCE_CHECKS_ENABLED,
+    deferRecordDetectorLoad: isPhone,
+    alignMeshEveryNTicks: isPhone ? 2 : 1,
+    /** Desktop: geometry metadata every 4th tick (~480ms) to spare main thread. */
+    recordCollectorEveryNTicks: isPhone ? 1 : 4,
+  };
 }
 
 function getFaceDetectorRuntimeConfig() {
@@ -81,6 +141,10 @@ var context = {
   warmupTimer: null,
   warmupTimeout: null,
   warmupSummary: null,
+  fpsMonitorActive: false,
+  fpsMonitorHandle: null,
+  fpsMonitorUsesNative: false,
+  fpsMonitorRecordingSamples: null,
   alignTimer: null,
   recordFramingTimer: null,
   countdownTimer: 0,
@@ -95,6 +159,8 @@ var context = {
   recordingFaceInGuide: false,
   recordingFramingReady: false,
   detectionInFlight: false,
+  attemptCount: 0,
+  retryCount: 0,
 };
 
 var faceModelsReady = false;
@@ -155,6 +221,9 @@ function getDomReferences() {
     scanOverlayDeniedText: H.byId("scan-overlay-denied-text"),
     btnCameraRetry: H.byId("btn-camera-retry"),
     btnCameraBack: H.byId("btn-camera-back"),
+    fpsScanSkipBanner: H.byId("fps-skip-banner"),
+    btnFpsSkip: H.byId("btn-fps-skip"),
+    btnSkipScan: H.byId("btn-skip-scan"),
   };
 }
 
@@ -347,6 +416,7 @@ function bootstrapModels() {
   FaceScanFaceModel.setConfig({
     provider: "mediapipe",
     mediapipe: runtimeConfig.mediapipe,
+    deferRecordDetectorLoad: getDevicePerfConfig().deferRecordDetectorLoad,
   });
 
   modelsLoadPromise = FaceScanFaceModel.load()
@@ -413,6 +483,9 @@ function openScanPanelAndRequestCamera(camera) {
   clearScanRecoveryUi();
   if (cameraDOM.btnRestartCamera) {
     cameraDOM.btnRestartCamera.classList.add("hidden");
+  }
+  if (cameraDOM.btnSkipScan) {
+    cameraDOM.btnSkipScan.classList.add("hidden");
   }
   if (cameraDOM.btnStart) cameraDOM.btnStart.disabled = true;
   cameraDOM.panelInstructions.classList.add("hidden");
@@ -597,6 +670,9 @@ function resetUiToStart(camera, recording) {
   if (recording) recording.teardownRecordingPill();
   if (camera) camera.stopStream();
   if (camera) camera.cancelCountdown();
+  context.skipFpsGate = false;
+  if (cameraDOM.fpsScanSkipBanner) cameraDOM.fpsScanSkipBanner.classList.add("hidden");
+  if (cameraDOM.btnSkipScan) cameraDOM.btnSkipScan.classList.add("hidden");
   cameraDOM.panelInstructions.classList.remove("hidden");
   cameraDOM.panelScan.classList.add("hidden");
   cameraDOM.panelResult.classList.add("hidden");
@@ -640,6 +716,7 @@ function hasRequiredDom() {
  * @returns {object}
  */
 function createRecordingController(getCamera, onResetUi) {
+  var recordBps = getRecordVideoBitrates();
   return FaceScanRecordingController.create({
     ctx: context,
     getCamera: function () {
@@ -656,8 +733,8 @@ function createRecordingController(getCamera, onResetUi) {
     },
     config: {
       recordTargetMs: RECORD_TARGET_MS,
-      recordVideoBpsMp4: RECORD_VIDEO_BPS_MP4,
-      recordVideoBpsWebm: RECORD_VIDEO_BPS_WEBM,
+      recordVideoBpsMp4: recordBps.mp4,
+      recordVideoBpsWebm: recordBps.webm,
     },
     bridges: {
       showError: showError,
@@ -688,6 +765,7 @@ function createRecordingController(getCamera, onResetUi) {
         }
       },
       onQualityRestart: function (message, qualityTimeline) {
+        context.retryCount = (context.retryCount || 0) + 1;
         context.qualityTimeline = Array.isArray(qualityTimeline)
           ? qualityTimeline
           : [];
@@ -696,6 +774,10 @@ function createRecordingController(getCamera, onResetUi) {
         setScanRecoveryUi(true, recoveryMessage);
         if (cameraDOM.btnRestartCamera) {
           cameraDOM.btnRestartCamera.classList.remove("hidden");
+        }
+        if (cameraDOM.btnSkipScan) {
+          var offerSkip = context.retryCount >= SKIP_SCAN_OFFER_AFTER_RETRIES;
+          cameraDOM.btnSkipScan.classList.toggle("hidden", !offerSkip);
         }
         if (cameraDOM.mimeHint) {
           cameraDOM.mimeHint.textContent =
@@ -729,6 +811,7 @@ function createRecordingController(getCamera, onResetUi) {
  * @returns {object}
  */
 function createCameraController(recording) {
+  var perf = getDevicePerfConfig();
   return FaceScanCameraController.create({
     ctx: context,
     elements: {
@@ -748,7 +831,17 @@ function createCameraController(recording) {
     config: {
       warmupDurationMs: WARMUP_DURATION_MS,
       alignIntervalMs: ALIGN_INTERVAL_MS,
+      isPhone: perf.isPhone,
+      recordFramingIntervalMs: perf.recordFramingIntervalMs,
+      majorAbortStreak: perf.majorAbortStreak,
+      useDetectorDuringRecord: perf.useDetectorDuringRecord,
+      skipMeshDuringRecord: perf.skipMeshDuringRecord,
+      skipRecordLuminanceChecks: perf.skipRecordLuminanceChecks,
+      deferRecordDetectorLoad: perf.deferRecordDetectorLoad,
+      alignMeshEveryNTicks: perf.alignMeshEveryNTicks,
+      recordCollectorEveryNTicks: perf.recordCollectorEveryNTicks,
       stableHitCount: STABLE_HIT_COUNT,
+      minAlignMs: MIN_ALIGN_MS,
       faceMinFrac: FACE_MIN_FRAC,
       faceMaxFrac: FACE_MAX_FRAC,
       recordTargetMs: RECORD_TARGET_MS,
@@ -789,6 +882,11 @@ function createCameraController(recording) {
         setScanOverlayStage("align");
         setScanOverlayTip("Perfect alignment. Starting recording now…");
         if (!recording) return Promise.resolve();
+        context.attemptCount = (context.attemptCount || 0) + 1;
+        if (context.cameraMetadata) {
+          context.cameraMetadata.attempt_count = context.attemptCount;
+          context.cameraMetadata.retry_count = context.retryCount || 0;
+        }
         return recording.beginRecording();
       },
     },
@@ -841,6 +939,24 @@ function bindFaceScanEvents(camera, recording) {
     cameraDOM.faceConsentCheckbox.addEventListener("change", function () {
       hideError();
       syncStartButtonAvailability();
+    });
+  }
+
+  if (cameraDOM.btnFpsSkip) {
+    cameraDOM.btnFpsSkip.addEventListener("click", function () {
+      context.skipFpsGate = true;
+      if (cameraDOM.fpsScanSkipBanner) {
+        cameraDOM.fpsScanSkipBanner.classList.add("hidden");
+      }
+    });
+  }
+
+  if (cameraDOM.btnSkipScan) {
+    cameraDOM.btnSkipScan.addEventListener("click", function () {
+      resetUiToStart(camera, recording);
+      document.dispatchEvent(new CustomEvent("maika-demo:face-scan-skipped", {
+        detail: { retryCount: context.retryCount },
+      }));
     });
   }
 }

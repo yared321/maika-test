@@ -9,6 +9,40 @@ import { startAlignLoop, stopAlignLoop } from "./face_scan_align_loop.js";
 import { stopRecordFramingLoop } from "./face_scan_record_loop.js";
 import { syncFaceScanFx, clearFaceMesh, showCameraDeniedOverlay } from "./face_scan_camera_fx.js";
 import { startWarmup, stopWarmup } from "./face_scan_warmup.js";
+import { startFpsMonitor, stopFpsMonitor } from "./face_scan_fps_monitor.js";
+
+/** Parses browser name + version and OS from the user-agent string. */
+function parseDeviceInfo() {
+  var ua = (navigator && navigator.userAgent) || "";
+  var browser = "unknown";
+  var browserVersion = null;
+  var os = "unknown";
+  var m;
+
+  if (/iPhone|iPad|iPod/.test(ua))       os = "iOS";
+  else if (/Android/.test(ua))           os = "Android";
+  else if (/Macintosh|Mac OS X/.test(ua)) os = "macOS";
+  else if (/Windows/.test(ua))           os = "Windows";
+  else if (/Linux/.test(ua))             os = "Linux";
+
+  if (/CriOS\//.test(ua))       { browser = "Chrome iOS";   m = /CriOS\/([\d.]+)/.exec(ua); }
+  else if (/FxiOS\//.test(ua))  { browser = "Firefox iOS";  m = /FxiOS\/([\d.]+)/.exec(ua); }
+  else if (/Edg\//.test(ua))    { browser = "Edge";         m = /Edg\/([\d.]+)/.exec(ua); }
+  else if (/Chrome\//.test(ua)) { browser = "Chrome";       m = /Chrome\/([\d.]+)/.exec(ua); }
+  else if (/Firefox\//.test(ua)){ browser = "Firefox";      m = /Firefox\/([\d.]+)/.exec(ua); }
+  else if (/Version\//.test(ua) && /Safari\//.test(ua)) {
+    browser = "Safari"; m = /Version\/([\d.]+)/.exec(ua);
+  }
+
+  return {
+    browser: browser,
+    browser_version: m ? m[1] : null,
+    os: os,
+    user_agent: ua || null,
+    device_pixel_ratio: globalThis.devicePixelRatio || null,
+    iframe_flag: (globalThis.self !== globalThis.top),
+  };
+}
 
 /**
  * Requested camera constraints per the client's frontend quality-control spec.
@@ -31,6 +65,7 @@ export function stopStream(state) {
   stopRecordFramingLoop(state);
   stopAlignLoop(state);
   stopWarmup(state);
+  stopFpsMonitor(state);
   state.ctx.detectionInFlight = false;
   if (state.el.preview) state.el.preview.onloadeddata = null;
   if (state.ctx.stream) {
@@ -81,7 +116,9 @@ export function requestCameraAndStartAlignment(state) {
   state.ctx.cameraRequestInFlight = true;
   var myGen = (state.ctx.streamRequestGen = (state.ctx.streamRequestGen || 0) + 1);
   state.ctx.phase = "align";
+  var _deviceInfo = parseDeviceInfo();
   state.ctx.cameraMetadata = {
+    // camera constraints
     requested_width: REQUESTED_VIDEO_CONSTRAINTS.width.ideal,
     requested_height: REQUESTED_VIDEO_CONSTRAINTS.height.ideal,
     requested_fps: REQUESTED_VIDEO_CONSTRAINTS.frameRate.ideal,
@@ -91,6 +128,29 @@ export function requestCameraAndStartAlignment(state) {
     facing_mode: null,
     codec: null,
     mime_type: null,
+    is_phone: !!state.cfg.isPhone,
+    record_framing_interval_ms: Number(state.cfg.recordFramingIntervalMs) || null,
+    skip_record_luminance_checks: !!state.cfg.skipRecordLuminanceChecks,
+    skip_mesh_during_record: !!state.cfg.skipMeshDuringRecord,
+    defer_record_detector_load: !!state.cfg.deferRecordDetectorLoad,
+    // device info
+    browser: _deviceInfo.browser,
+    browser_version: _deviceInfo.browser_version,
+    os: _deviceInfo.os,
+    user_agent: _deviceInfo.user_agent,
+    device_pixel_ratio: _deviceInfo.device_pixel_ratio,
+    iframe_flag: _deviceInfo.iframe_flag,
+    // session counters (filled by flow controller)
+    attempt_count: null,
+    retry_count: null,
+    pre_scan_wait_sec: null,
+    active_recording_duration_ms: null,
+    // quality event aggregates (filled at recording stop)
+    bad_quality_interval_count: null,
+    bad_quality_total_duration_ms: null,
+    bad_quality_reasons: null,
+    abort_reason: null,
+    abort_at_ms: null,
   };
   navigator.mediaDevices
     .getUserMedia({
@@ -146,6 +206,7 @@ export function requestCameraAndStartAlignment(state) {
       state.ctx.cameraRequestInFlight = false;
       if (state.ctx.streamRequestGen !== myGen) return;
       if (state.bridges.onCameraReady) state.bridges.onCameraReady();
+      startFpsMonitor(state);
       startWarmup(state, function () {
         // Warmup runs for a couple of seconds; re-check in case stopStream()
         // (or a newer request) happened while it was running.

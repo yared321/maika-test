@@ -111,15 +111,31 @@ export function logFaceScanQualityReport(phase, report) {
   if (report.metrics) console.log("metrics:", report.metrics);
   if (report.traces) console.log("rolling traces:", report.traces);
   if (report.checks && report.checks.length) {
-    console.table(
-      report.checks.map(function (c) {
-        return {
-          check: c.id,
-          pass: c.pass,
-          detail: c.detail ? JSON.stringify(c.detail) : "",
-        };
-      }),
-    );
+    // console.table on every state change during record blocks the main thread;
+    // align/warmup still get the full table, record gets a compact line.
+    if (phase === "record") {
+      var failed = report.checks.filter(function (c) {
+        return !c.pass;
+      });
+      if (failed.length) {
+        console.log(
+          "failed checks:",
+          failed.map(function (c) {
+            return c.id;
+          }).join(", "),
+        );
+      }
+    } else {
+      console.table(
+        report.checks.map(function (c) {
+          return {
+            check: c.id,
+            pass: c.pass,
+            detail: c.detail ? JSON.stringify(c.detail) : "",
+          };
+        }),
+      );
+    }
   }
   console.groupEnd();
 }

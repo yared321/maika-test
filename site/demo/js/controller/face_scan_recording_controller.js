@@ -8,6 +8,14 @@ import {
   getEffectiveRecordTargetMs,
 } from "./face_scan_artifact_policy.js";
 import { FaceScanUpload } from "../service/service.js";
+import {
+  resetFpsRecordingSamples,
+  finalizeFpsRecordingMetadata,
+} from "./face_scan_fps_monitor.js";
+import {
+  initRecordCollector,
+  finalizeRecordCollector,
+} from "./face_scan_record_collector.js";
 
 /** Extracts the codec list from a MediaRecorder MIME type string, if present. */
 function parseCodecFromMimeType(mimeType) {
@@ -135,6 +143,25 @@ function handleImmediateUploadFlow(blob, lastMime, baseTxt, el, bridges, resolve
 }
 
 /**
+ * Derives an A/B/C/D acquisition grade from finalized metadata.
+ * A = excellent (≥90% quality ticks, ≥25 fps)
+ * B = acceptable (≥75% quality ticks, ≥15 fps)
+ * C = low quality (≥50% quality ticks)
+ * D = poor (below all thresholds or no data)
+ * The grade is metadata-only and never shown to the user.
+ */
+function computeQualityGrade(meta) {
+  if (!meta) return "D";
+  var okFrac = typeof meta.face_ok_fraction === "number" ? meta.face_ok_fraction : null;
+  var fps = typeof meta.delivered_fps_overall === "number" ? meta.delivered_fps_overall : null;
+  if (okFrac === null) return "D";
+  if (okFrac >= 0.90 && fps !== null && fps >= 25) return "A";
+  if (okFrac >= 0.75 && fps !== null && fps >= 15) return "B";
+  if (okFrac >= 0.50) return "C";
+  return "D";
+}
+
+/**
  * Produce `onstop` callback that finalizes recorder state and upload flow.
  * @param {Record<string, any>} state
  * @param {object|null} Camera
@@ -146,6 +173,13 @@ function createRecorderStopHandler(state, Camera, resolve) {
     var Camera2 = Camera;
     var w0 = state.el.preview ? state.el.preview.videoWidth : 0;
     var h0 = state.el.preview ? state.el.preview.videoHeight : 0;
+    var nowMs = performance.now();
+    var recordingDurationMs = null;
+    var recordStartedAt = state.ctx.recordWallClockStartedAt;
+    if (Number.isFinite(recordStartedAt) && recordStartedAt > 0) {
+      recordingDurationMs = nowMs - recordStartedAt;
+    }
+    var activeRecordingMs = state.ctx.recordBudgetAccumMs || 0;
     state.ctx.phase = "idle";
     if (Camera2) {
       Camera2.syncFaceScanFx(null);
@@ -159,9 +193,15 @@ function createRecorderStopHandler(state, Camera, resolve) {
     state.ctx.recorder = null;
     if (Camera2) Camera2.stopStream();
 
-    var nowMs = performance.now();
     var qualityTimeline = finalizeArtifactTimeline(state.ctx, nowMs);
     state.ctx.qualityTimeline = qualityTimeline;
+    finalizeFpsRecordingMetadata(state.ctx, recordingDurationMs);
+    finalizeRecordCollector(state.ctx, nowMs);
+    if (state.ctx.cameraMetadata) {
+      state.ctx.cameraMetadata.active_recording_duration_ms =
+        activeRecordingMs > 0 ? Math.round(activeRecordingMs) : null;
+      state.ctx.cameraMetadata.quality_grade = computeQualityGrade(state.ctx.cameraMetadata);
+    }
     saveCameraMetadataDebugJson(state.ctx);
 
     var discardRun =
@@ -348,6 +388,11 @@ function beginRecordingState(state) {
     if (state.ctx.cameraMetadata) {
       state.ctx.cameraMetadata.mime_type = state.lastMime || null;
       state.ctx.cameraMetadata.codec = parseCodecFromMimeType(state.lastMime);
+      var mimeLower = (state.lastMime || "").toLowerCase();
+      state.ctx.cameraMetadata.record_video_bps =
+        mimeLower.indexOf("mp4") !== -1
+          ? state.cfg.recordVideoBpsMp4
+          : state.cfg.recordVideoBpsWebm;
     }
 
     Camera.startRecordFramingLoop();
@@ -364,6 +409,8 @@ function beginRecordingState(state) {
       state.cfg,
     );
     state.ctx.recordWallClockStartedAt = performance.now();
+    resetFpsRecordingSamples(state.ctx);
+    initRecordCollector(state.ctx);
     state.ctx.recorder.start(200);
     Camera.syncFaceScanFx(null);
   });

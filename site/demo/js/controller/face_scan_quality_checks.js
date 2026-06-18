@@ -14,10 +14,18 @@ import {
 } from "./face_scan_quality_helpers.js";
 
 /**
- * Check 1: verifies a face was detected in the current frame.
+ * Check 1: verifies exactly one face was detected in the current frame.
  */
-function check1FacePresent(box) {
-  var check = qualityCheck("1_face_present", !!box, { detected: !!box });
+function check1FacePresent(box, faceCount) {
+  var count = typeof faceCount === "number" ? faceCount : (box ? 1 : 0);
+  if (count > 1) {
+    return {
+      check: qualityCheck("1_face_present", false, { detected: true, faceCount: count, reason: "multiple_faces" }),
+      ok: false,
+      message: "Multiple faces detected. Only one person should be in frame.",
+    };
+  }
+  var check = qualityCheck("1_face_present", !!box, { detected: !!box, faceCount: count });
   if (!box) {
     return {
       check: check,
@@ -319,10 +327,10 @@ function check13PreliminaryRppgSignal(temporal) {
  * Executes the 13 face-quality checks and returns pass/fail guidance.
  * This function orchestrates check order and early exits.
  */
-function runFaceQualityChecks(state, box, landmarks, metrics, nowMs) {
+function runFaceQualityChecks(state, phase, box, landmarks, metrics, nowMs, faceCount) {
   var checks = [];
 
-  var c1 = check1FacePresent(box);
+  var c1 = check1FacePresent(box, faceCount);
   checks.push(c1.check);
   if (!c1.ok) return { ok: false, message: c1.message, direction: c1.direction, checks: checks };
 
@@ -341,23 +349,52 @@ function runFaceQualityChecks(state, box, landmarks, metrics, nowMs) {
   checks.push(c5.check);
   if (!c5.ok) return { ok: false, message: c5.message, checks: checks };
 
-  var c6 = check6BrightnessInRange(state, metrics);
-  if (c6.check) checks.push(c6.check);
-  if (!c6.ok) return { ok: false, message: c6.message, checks: checks };
+  var skipLuma =
+    phase === "record" && state.cfg.skipRecordLuminanceChecks;
+  if (skipLuma) {
+    checks.push(
+      qualityCheck("6_brightness_in_range", true, {
+        skipped: true,
+        mode: "align_gated",
+      }),
+    );
+    checks.push(
+      qualityCheck("7_no_overexposed_skin", true, {
+        skipped: true,
+        mode: "align_gated",
+      }),
+    );
+    checks.push(
+      qualityCheck("8_no_underexposed_skin", true, {
+        skipped: true,
+        mode: "align_gated",
+      }),
+    );
+    checks.push(
+      qualityCheck("9_left_right_illumination_symmetric", true, {
+        skipped: true,
+        mode: "align_gated",
+      }),
+    );
+  } else {
+    var c6 = check6BrightnessInRange(state, metrics);
+    if (c6.check) checks.push(c6.check);
+    if (!c6.ok) return { ok: false, message: c6.message, checks: checks };
 
-  var c7 = check7NoOverexposedSkin(state, metrics);
-  checks.push(c7.check);
-  if (!c7.ok) return { ok: false, message: c7.message, checks: checks };
+    var c7 = check7NoOverexposedSkin(state, metrics);
+    checks.push(c7.check);
+    if (!c7.ok) return { ok: false, message: c7.message, checks: checks };
 
-  var c8 = check8NoUnderexposedSkin(state, metrics);
-  checks.push(c8.check);
-  if (!c8.ok) return { ok: false, message: c8.message, checks: checks };
+    var c8 = check8NoUnderexposedSkin(state, metrics);
+    checks.push(c8.check);
+    if (!c8.ok) return { ok: false, message: c8.message, checks: checks };
 
-  var c9 = check9LeftRightIlluminationSymmetric(state, metrics);
-  checks.push(c9.check);
-  if (!c9.ok) return { ok: false, message: c9.message, checks: checks };
+    var c9 = check9LeftRightIlluminationSymmetric(state, metrics);
+    checks.push(c9.check);
+    if (!c9.ok) return { ok: false, message: c9.message, checks: checks };
+  }
 
-  collectQualityTraces(state, box, metrics, nowMs);
+  collectQualityTraces(state, box, skipLuma ? null : metrics, nowMs);
   var temporal = evaluateTemporalQuality(state, state.el.preview);
 
   var c10 = check10BrightnessStableOverTime(temporal);
@@ -374,6 +411,9 @@ function runFaceQualityChecks(state, box, landmarks, metrics, nowMs) {
     message: temporal.message,
     checks: checks,
     direction: temporal.direction,
+    fpsLow: !!temporal.fpsLow,
+    fpsTier: temporal.fpsTier || null,
+    fpsWarning: temporal.fpsWarning || null,
   };
 }
 
@@ -406,9 +446,11 @@ function runFaceQualityChecks(state, box, landmarks, metrics, nowMs) {
  * `checks` array returned on a failing sample may not contain every check id
  * (e.g. checks 10-13 are skipped entirely if check 9 already failed).
  */
-export function evaluateFaceQuality(state, phase, box, landmarks, metrics, nowMs) {
-  var result = runFaceQualityChecks(state, box, landmarks, metrics, nowMs);
-  var artifact = applyArtifactPolicy(state.ctx, result, nowMs, phase);
+export function evaluateFaceQuality(state, phase, box, landmarks, metrics, nowMs, faceCount) {
+  var result = runFaceQualityChecks(state, phase, box, landmarks, metrics, nowMs, faceCount);
+  var artifact = applyArtifactPolicy(state.ctx, result, nowMs, phase, {
+    majorAbortStreak: state.cfg.majorAbortStreak,
+  });
   result.artifact = artifact;
   if (phase === "record") {
     result.ok = artifact.recordingOk;

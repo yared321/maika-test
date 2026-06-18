@@ -8,6 +8,7 @@ import * as Dbg from "../utils/face_scan_debug.js";
 import { evaluateFaceQuality } from "./face_scan_quality_checks.js";
 import {
   extractBoxFromDetection,
+  extractFaceCountFromDetection,
   extractLandmarksFromDetection,
 } from "./face_scan_detection_utils.js";
 import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./face_scan_camera_fx.js";
@@ -54,6 +55,7 @@ export function tickAlignment(state) {
     .then(function (detection) {
       if (state.ctx.phase !== "align") return;
       var box = extractBoxFromDetection(detection);
+      var faceCount = extractFaceCountFromDetection(detection);
       var landmarks = extractLandmarksFromDetection(detection);
       var metrics = box ? H.sampleFaceRegionMetrics(state.el.preview, box) : null;
       var quality = evaluateFaceQuality(
@@ -63,31 +65,60 @@ export function tickAlignment(state) {
         landmarks,
         metrics,
         performance.now(),
+        faceCount,
       );
-      syncFaceMesh(state, landmarks, quality.ok);
+      state.ctx.alignMeshTick = (state.ctx.alignMeshTick || 0) + 1;
+      var meshEvery = Number(state.cfg.alignMeshEveryNTicks) || 1;
+      if (state.ctx.alignMeshTick % meshEvery === 0) {
+        syncFaceMesh(state, landmarks, quality.ok);
+      }
+
+      if (state.el.fpsScanSkipBanner) {
+        state.el.fpsScanSkipBanner.classList.toggle("hidden", !quality.fpsLow);
+      }
 
       if (quality.ok) {
         state.ctx.placementStableHits++;
         if (state.ctx.placementStableHits === 1) {
           Dbg.logFaceScanStep("align: first stable quality pass");
         }
-        var msg =
-          state.ctx.placementStableHits >= state.cfg.stableHitCount - 1
-            ? "Almost there — hold still."
-            : state.ctx.placementStableHits >= state.cfg.stableHitCount - 2
-              ? "Looking good."
-              : "Face aligned — hold still.";
-        H.setPlacementUi(state.el.placementStatus, "good", msg);
-        if (state.ctx.placementStableHits >= state.cfg.stableHitCount) {
+        var msg;
+        if (quality.fpsWarning) {
+          msg = quality.fpsWarning;
+        } else {
+          msg =
+            state.ctx.placementStableHits >= state.cfg.stableHitCount - 1
+              ? "Almost there — hold still."
+              : state.ctx.placementStableHits >= state.cfg.stableHitCount - 2
+                ? "Looking good."
+                : "Face aligned — hold still.";
+        }
+        H.setPlacementUi(state.el.placementStatus, quality.fpsWarning ? "wait" : "good", msg);
+        var minAlignMs = Number(state.cfg.minAlignMs) || 0;
+        var alignElapsed = performance.now() - (state.ctx.alignStartedAt || 0);
+        var minAlignReached = alignElapsed >= minAlignMs;
+        if (state.ctx.placementStableHits >= state.cfg.stableHitCount && minAlignReached) {
           Dbg.logFaceScanStep("align: stable hits reached, starting countdown", {
             hits: state.ctx.placementStableHits,
             required: state.cfg.stableHitCount,
+            alignElapsedMs: Math.round(alignElapsed),
           });
+          state.ctx.alignBaselineMetrics = metrics;
           stopAlignLoop(state);
           state.ctx.phase = "countdown";
+          if (state.ctx.cameraMetadata && state.ctx.alignStartedAt) {
+            state.ctx.cameraMetadata.pre_scan_wait_sec =
+              Math.round((performance.now() - state.ctx.alignStartedAt) / 100) / 10;
+          }
+          if (state.el.fpsScanSkipBanner) {
+            state.el.fpsScanSkipBanner.classList.add("hidden");
+          }
           syncFaceScanFx(state, null);
           clearFaceMesh(state);
           H.setPlacementUi(state.el.placementStatus, "wait", "Starting…");
+          if (state.cfg.deferRecordDetectorLoad) {
+            void H.ensureRecordDetectorLoaded();
+          }
           runCountdownThenRecord(state);
         }
       } else {
@@ -115,6 +146,8 @@ export function startAlignLoop(state) {
   Dbg.resetFaceScanDebugDedupe("record");
   Dbg.logFaceScanStep("phase: align loop started");
   state.ctx.placementStableHits = 0;
+  state.ctx.alignMeshTick = 0;
+  state.ctx.alignStartedAt = performance.now();
   state.ctx.quality.brightnessHistory = [];
   state.ctx.quality.greenHistory = [];
   state.ctx.quality.frameDtHistory = [];

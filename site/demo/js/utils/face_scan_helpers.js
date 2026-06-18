@@ -6,6 +6,8 @@ import {
   getDetectorOptions as getFaceDetectorOptions,
   isDetectionEnabled as isFaceDetectionEnabled,
   detectSingleFace as detectSingleFaceFromModel,
+  detectSingleFaceForRecord as detectSingleFaceForRecordFromModel,
+  ensureRecordDetectorLoaded as ensureRecordDetectorLoadedFromModel,
 } from "./face_scan_face_model.js";
 
 /**
@@ -36,10 +38,24 @@ export function isDetectorEnabled() {
 /**
  * Unified single-face detection call routed by configured provider.
  * @param {HTMLVideoElement|HTMLCanvasElement} source
+ * @param {{ mode?: "landmarker" | "detector" }} [options]
  * @returns {Promise<{ box: { x: number, y: number, width: number, height: number } } | null>}
  */
-export function detectSingleFace(source) {
-  return detectSingleFaceFromModel(source);
+export function detectSingleFace(source, options) {
+  return detectSingleFaceFromModel(source, options);
+}
+
+/**
+ * Box-only BlazeFace detection for the recording phase (lighter than landmarker).
+ * @param {HTMLVideoElement|HTMLCanvasElement} source
+ */
+export function detectSingleFaceForRecord(source) {
+  return detectSingleFaceForRecordFromModel(source);
+}
+
+/** Prefetch BlazeFace on phone during countdown (landmarker-only initial load). */
+export function ensureRecordDetectorLoaded() {
+  return ensureRecordDetectorLoadedFromModel();
 }
 
 /** Picks a MediaRecorder MIME type browsers on this machine are likely to support. */
@@ -385,6 +401,7 @@ export const FaceScanHelpers = {
   getDetectorOptions,
   isDetectorEnabled,
   detectSingleFace,
+  detectSingleFaceForRecord,
   pickMimeType,
   formatTime,
   friendlyCameraMessage,

@@ -21,6 +21,13 @@ export function extractLandmarksFromDetection(detection) {
   return null;
 }
 
+/** Returns the number of faces detected in the payload (0 when unknown). */
+export function extractFaceCountFromDetection(detection) {
+  if (!detection || typeof detection !== "object") return 0;
+  if (typeof detection.faceCount === "number") return detection.faceCount;
+  return detection.box ? 1 : 0;
+}
+
 /**
  * Normalizes detection box payloads to { x, y, width, height }.
  * Supports standard detector payloads and numeric safety checks.

@@ -14,9 +14,11 @@ import {
 import { evaluateFaceQuality } from "./face_scan_quality_checks.js";
 import {
   extractBoxFromDetection,
+  extractFaceCountFromDetection,
   extractLandmarksFromDetection,
 } from "./face_scan_detection_utils.js";
 import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./face_scan_camera_fx.js";
+import { collectRecordTick } from "./face_scan_record_collector.js";
 
 /** Resets recording-only timers, flags, and rolling quality histories. */
 function resetRecordingBudget(state) {
@@ -27,7 +29,6 @@ function resetRecordingBudget(state) {
   state.ctx.recordingFramingReady = false;
   state.ctx.quality.brightnessHistory = [];
   state.ctx.quality.greenHistory = [];
-  state.ctx.quality.frameDtHistory = [];
   state.ctx.quality.motionHistory = [];
   state.ctx.quality.visibilityFailStreak = 0;
   resetArtifactTimeline(state.ctx);
@@ -137,13 +138,14 @@ export function tickCameraRecordFraming(state) {
   if (state.ctx.detectionInFlight) return;
   state.ctx.detectionInFlight = true;
 
-  H.detectSingleFace(state.el.preview)
+  detectFaceForRecordPhase(state)
     .then(function (detection) {
       state.ctx.detectionInFlight = false;
       if (state.ctx.phase !== "record") return;
       var rec = state.ctx.recorder;
       if (!rec) return;
       var box = extractBoxFromDetection(detection);
+      var faceCount = extractFaceCountFromDetection(detection);
       var landmarks = extractLandmarksFromDetection(detection);
       var now = performance.now();
       if (isRecordingWallClockLimitReached(state, now)) {
@@ -152,16 +154,26 @@ export function tickCameraRecordFraming(state) {
         } catch (esWall) {}
         return;
       }
-      var metrics = box ? H.sampleFaceRegionMetrics(state.el.preview, box) : null;
+      var metrics = box ? sampleRecordMetrics(state, box) : null;
       var quality = evaluateFaceQuality(
         state,
         "record",
         box,
-        landmarks,
+        state.cfg.skipMeshDuringRecord ? null : landmarks,
         metrics,
         now,
+        faceCount,
       );
-      syncFaceMesh(state, landmarks, !!(quality && quality.ok));
+      syncRecordMesh(state, landmarks, quality.ok);
+      state.ctx.recordCollectorSeq = (state.ctx.recordCollectorSeq || 0) + 1;
+      var collectorEvery = Number(state.cfg.recordCollectorEveryNTicks) || 1;
+      var collectorReg =
+        box &&
+        state.el.preview &&
+        state.ctx.recordCollectorSeq % collectorEvery === 0
+          ? H.getCoverVisibleRegion(state.el.preview)
+          : null;
+      collectRecordTick(state.ctx, box, quality, collectorReg, now);
 
       // Sustained major artifact: discard this attempt and let the flow restart
       // alignment for a fresh, fully continuous take.
@@ -171,6 +183,12 @@ export function tickCameraRecordFraming(state) {
         state.ctx.autoRestartCameraAfterAbort = true;
         state.ctx.qualityRestartMessage =
           "Signal stayed unstable for too long. Keep your face centered, hold still, and use steady lighting.";
+        if (state.ctx.cameraMetadata) {
+          state.ctx.cameraMetadata.abort_reason = quality.message || null;
+          var recStart = state.ctx.recordWallClockStartedAt;
+          state.ctx.cameraMetadata.abort_at_ms = Number.isFinite(recStart)
+            ? Math.round(now - recStart) : null;
+        }
         state.ctx.recordingFaceInGuide = false;
         H.setPlacementUi(
           state.el.placementStatus,
@@ -249,16 +267,45 @@ export function tickCameraRecordFraming(state) {
     });
 }
 
+function getRecordFramingIntervalMs(state) {
+  var ms = Number(state.cfg.recordFramingIntervalMs);
+  if (Number.isFinite(ms) && ms > 0) return ms;
+  return Number(state.cfg.alignIntervalMs) || 120;
+}
+
+function detectFaceForRecordPhase(state) {
+  if (state.cfg.useDetectorDuringRecord) {
+    return H.detectSingleFaceForRecord(state.el.preview);
+  }
+  return H.detectSingleFace(state.el.preview);
+}
+
+function sampleRecordMetrics(state, box) {
+  if (!box || !state.el.preview) return null;
+  if (state.cfg.skipRecordLuminanceChecks) return null;
+  return H.sampleFaceRegionMetrics(state.el.preview, box);
+}
+
+function syncRecordMesh(state, landmarks, qualityOk) {
+  if (state.cfg.skipMeshDuringRecord) {
+    clearFaceMesh(state);
+    return;
+  }
+  syncFaceMesh(state, landmarks, qualityOk);
+}
+
 /** Starts the recording-framing loop from a fresh recording budget. */
 export function startRecordFramingLoop(state) {
   stopRecordFramingLoop(state);
   Dbg.resetFaceScanDebugDedupe("record");
-  Dbg.logFaceScanStep("phase: record framing loop started");
+  Dbg.logFaceScanStep("phase: record framing loop started", {
+    intervalMs: getRecordFramingIntervalMs(state),
+  });
   state.ctx.recordFramingTimer = globalThis.setInterval(
     function () {
       tickCameraRecordFraming(state);
     },
-    state.cfg.alignIntervalMs,
+    getRecordFramingIntervalMs(state),
   );
   tickCameraRecordFraming(state);
 }

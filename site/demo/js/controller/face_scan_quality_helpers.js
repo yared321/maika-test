@@ -129,10 +129,6 @@ export function evaluateVisibilityCheck(state, box, landmarks) {
   if (!reg || !box) {
     return { pass: false, detail: { reason: "no_visible_region_or_box" } };
   }
-  if (!Array.isArray(landmarks) || landmarks.length === 0) {
-    return { pass: false, detail: { reason: "no_landmarks" } };
-  }
-
   var preview = state.el.preview;
   if (!preview || preview.readyState < 2) {
     return { pass: false, detail: { reason: "no_video_dimensions" } };
@@ -141,6 +137,28 @@ export function evaluateVisibilityCheck(state, box, landmarks) {
   var vh = preview.videoHeight;
   if (!vw || !vh) {
     return { pass: false, detail: { reason: "no_video_dimensions" } };
+  }
+
+  if (!Array.isArray(landmarks) || landmarks.length === 0) {
+    if (!box || box.width <= 0 || box.height <= 0) {
+      return { pass: false, detail: { reason: "no_landmarks_no_box" } };
+    }
+    var fbCanvas = getOrCreateSamplingCanvas(vw, vh);
+    var fbCtx = fbCanvas.getContext("2d", { willReadFrequently: true });
+    if (!fbCtx) return { pass: true, detail: { mode: "box_fallback", skipped: true } };
+    try {
+      fbCtx.drawImage(preview, 0, 0, vw, vh);
+    } catch (_e) {
+      return { pass: true, detail: { mode: "box_fallback", skipped: true } };
+    }
+    var fbCx = box.x + box.width * 0.5;
+    var fbCy = box.y + box.height * 0.45;
+    var fbR = Math.max(12, Math.min(48, box.width * 0.22));
+    var fbSkin = classifySkinFraction(fbCtx, fbCx, fbCy, fbR, vw, vh);
+    return {
+      pass: fbSkin >= 0.22,
+      detail: { mode: "box_fallback", skinFraction: Number(fbSkin.toFixed(3)) },
+    };
   }
 
   var ROIS = {
@@ -474,7 +492,12 @@ function stddev(arr) {
   return Math.sqrt(varSum / arr.length);
 }
 
-/** Samples and stores rolling temporal traces (brightness, green channel, FPS, motion). */
+/**
+ * Samples and stores rolling temporal traces (brightness, green channel, motion).
+ * frameDtHistory (used by the FPS check) is NOT populated here — it's fed
+ * directly by face_scan_fps_monitor.js from real video frame timestamps, not
+ * this function's polling-loop tick cadence.
+ */
 export function collectQualityTraces(state, box, metrics, nowMs) {
   var q = state.ctx.quality;
   var historyLen = Number(state.cfg.qualityHistoryLen) || 24;
@@ -483,12 +506,6 @@ export function collectQualityTraces(state, box, metrics, nowMs) {
   }
   if (metrics && Number.isFinite(metrics.meanGreen)) {
     pushRollingValue(q.greenHistory, metrics.meanGreen, historyLen);
-  }
-  if (q.lastSampleAt != null && Number.isFinite(nowMs)) {
-    var dt = nowMs - q.lastSampleAt;
-    if (dt > 0 && dt < 2000) {
-      pushRollingValue(q.frameDtHistory, dt, historyLen);
-    }
   }
   q.lastSampleAt = nowMs;
   if (box) {
@@ -520,28 +537,56 @@ export function evaluateTemporalQuality(state, preview) {
   if (q.frameDtHistory.length >= 8) {
     var fps = dtAvg > 0 ? 1000 / dtAvg : 0;
     var stableRatio = dtAvg > 0 ? dtStd / dtAvg : 0;
+    var fpsTier = fps >= 25 ? "ok" : fps >= 20 ? "caution" : fps >= minFps ? "low" : "blocked";
     var frameRateStable = fps >= minFps && stableRatio <= maxDtRatio;
     checks.push(
       qualityCheck("12_frame_rate_stable", frameRateStable, {
         fps: Number(fps.toFixed(1)),
         minFps: minFps,
+        tier: fpsTier,
         dtStdRatio: Number(stableRatio.toFixed(3)),
         maxDtStdRatio: maxDtRatio,
         samples: q.frameDtHistory.length,
       }),
     );
     if (fps < minFps) {
-      return {
-        ok: false,
-        message: "Camera FPS is too low. Hold steady and close background apps.",
-        checks: checks,
-      };
+      if (state.ctx && state.ctx.skipFpsGate) {
+        checks[checks.length - 1] = qualityCheck("12_frame_rate_stable", true, {
+          fps: Number(fps.toFixed(1)),
+          minFps: minFps,
+          tier: "skipped",
+          skippedGate: true,
+        });
+      } else {
+        return {
+          ok: false,
+          message: "Camera FPS is too low. Hold steady and close background apps.",
+          checks: checks,
+          fpsLow: true,
+        };
+      }
     }
     if (stableRatio > maxDtRatio) {
       return {
         ok: false,
         message: "Frame rate is unstable. Keep camera and device steady.",
         checks: checks,
+      };
+    }
+    if (fpsTier === "low") {
+      return {
+        ok: true,
+        checks: checks,
+        fpsTier: "low",
+        fpsWarning: "FPS is low (" + Number(fps.toFixed(0)) + " fps). Close background apps for better quality.",
+      };
+    }
+    if (fpsTier === "caution") {
+      return {
+        ok: true,
+        checks: checks,
+        fpsTier: "caution",
+        fpsWarning: "FPS slightly low (" + Number(fps.toFixed(0)) + " fps). Recording quality may be limited.",
       };
     }
   } else {
@@ -675,13 +720,17 @@ function getQualityTracesSnapshot(state) {
 
 /** Emits the current quality evaluation payload to debug logging. */
 export function publishQualityReport(phase, state, result, box, metrics, landmarks) {
+  if (!Dbg.isFaceScanDebugEnabled()) return;
+  // Record phase runs ~250 ticks/take; skip heavy trace/metrics snapshots here —
+  // they were running every 120ms even when debug logging deduped the output.
+  var includeHeavyDebug = phase !== "record";
   Dbg.logFaceScanQualityReport(phase, {
     ok: result.ok,
     message: result.message,
     artifact: result.artifact,
     checks: result.checks,
-    metrics: metrics,
-    traces: getQualityTracesSnapshot(state),
+    metrics: includeHeavyDebug ? metrics : null,
+    traces: includeHeavyDebug ? getQualityTracesSnapshot(state) : null,
     box: box
       ? {
           x: Number(box.x.toFixed(1)),

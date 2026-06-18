@@ -148,9 +148,10 @@ function openLowQualitySegment(q, nowMs, severity, checkId, message) {
  * @param {object} result - output from runFaceQualityChecks
  * @param {number} nowMs - performance.now()
  * @param {string} phase - "align" | "record"
+ * @param {{ majorAbortStreak?: number }} [policyCfg]
  * @returns {object} artifact decision for this quality sample
  */
-export function applyArtifactPolicy(ctx, result, nowMs, phase) {
+export function applyArtifactPolicy(ctx, result, nowMs, phase, policyCfg) {
   var q = ensureArtifactState(ctx);
   var sampleOk = !!(result && result.ok);
   var failedCheckId = getFailedCheckId(result);
@@ -198,10 +199,15 @@ export function applyArtifactPolicy(ctx, result, nowMs, phase) {
     }
   }
 
+  var majorAbortStreak =
+    policyCfg && Number(policyCfg.majorAbortStreak) > 0
+      ? Number(policyCfg.majorAbortStreak)
+      : MAJOR_ABORT_STREAK;
+
   var shouldAbortRecording =
     phase === "record" &&
     effectiveAction === "stop_major" &&
-    q.artifactFailStreak >= MAJOR_ABORT_STREAK;
+    q.artifactFailStreak >= majorAbortStreak;
 
   return {
     tier: tier,
@@ -241,7 +247,22 @@ export function getEffectiveRecordTargetMs(ctx, cfg) {
 export function finalizeArtifactTimeline(ctx, nowMs) {
   var q = ensureArtifactState(ctx);
   closeOpenSegment(q, nowMs);
-  return q.qualitySegments;
+  var segments = q.qualitySegments;
+
+  if (ctx.cameraMetadata && Array.isArray(segments)) {
+    var totalBadMs = 0;
+    var reasons = {};
+    for (var i = 0; i < segments.length; i++) {
+      var s = segments[i];
+      if (s.t0Ms != null && s.t1Ms != null) totalBadMs += s.t1Ms - s.t0Ms;
+      if (s.checkId) reasons[s.checkId] = (reasons[s.checkId] || 0) + 1;
+    }
+    ctx.cameraMetadata.bad_quality_interval_count = segments.length;
+    ctx.cameraMetadata.bad_quality_total_duration_ms = Math.round(totalBadMs);
+    ctx.cameraMetadata.bad_quality_reasons = reasons;
+  }
+
+  return segments;
 }
 
 /**
