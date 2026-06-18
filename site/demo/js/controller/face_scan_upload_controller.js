@@ -22,9 +22,34 @@ const UPLOAD_STATUS = {
   idle: "Ready to upload and calculate score",
   uploading: "Uploading video and calculating score…",
   success: "Score calculated. You can continue.",
-  error:
-    "Upload or score failed. Use Record again for a new video, or Continue to retry this one.",
+  error: "Upload failed. Use Record again for a new video, or Continue to retry.",
+  errorNoRetry: "Score calculation failed. Please record again.",
 };
+
+// User-facing messages for specific API error codes (spec §5).
+const ERROR_CODE_MESSAGES = {
+  LOW_LIGHT:        "Lighting was too low during the scan. Move to a brighter area and record again.",
+  LOW_QUALITY:      "Video quality was too low. Ensure good lighting and hold steady, then record again.",
+  FACE_NOT_FOUND:   "No face was detected in the recording. Keep your face in frame and record again.",
+  VIDEO_TOO_SHORT:  "Recording was too short. Stay still for the full 30 seconds and record again.",
+  UNSUPPORTED_MEDIA:"Video format is not supported. Please record again.",
+  PAYLOAD_TOO_LARGE:"Recording is too large to upload (max 31 MB). Please record again.",
+  RATE_LIMITED:     "Too many requests — please wait a moment, then try again.",
+  UNAUTHORIZED:     "Authentication failed. Please refresh the page and try again.",
+  FORBIDDEN:        "Access denied. Please refresh the page and try again.",
+  INTERNAL_ERROR:   "Server error — please try again in a moment.",
+};
+
+// Build the user-facing message and retryable flag from an upload result.
+function errorMessageForResult(result) {
+  if (result.errorCode && ERROR_CODE_MESSAGES[result.errorCode]) {
+    return ERROR_CODE_MESSAGES[result.errorCode];
+  }
+  if (result.errorMessage) return result.errorMessage;
+  if (result.timedOut) return "Upload timed out. Please try again.";
+  if (result.netError) return "Network error. Check your connection and try again.";
+  return `Upload failed (HTTP ${result.status || 0}).`;
+}
 
 /**
  * Show or hide the result-panel "Record again" control.
@@ -276,14 +301,12 @@ export async function startFaceUpload(dom, state, setWizardError) {
       return;
     }
 
-    const message =
-      uploadResult.errorMessage ||
-      (uploadResult.timedOut
-        ? "Upload timed out."
-        : uploadResult.netError
-          ? "Network or CORS error."
-          : `Upload failed (HTTP ${uploadResult.status || 0}).`);
-    failFaceUpload(dom, state, setWizardError, UPLOAD_STATUS.error, message);
+    const message = errorMessageForResult(uploadResult);
+    // retryable===false means the same video will fail again — tell the user to re-record.
+    // retryable===true or null (network/5xx) means retrying the upload may succeed.
+    const canRetryUpload = uploadResult.retryable !== false;
+    const statusLabel = canRetryUpload ? UPLOAD_STATUS.error : UPLOAD_STATUS.errorNoRetry;
+    failFaceUpload(dom, state, setWizardError, statusLabel, message);
   } catch (_error) {
     failFaceUpload(
       dom,
