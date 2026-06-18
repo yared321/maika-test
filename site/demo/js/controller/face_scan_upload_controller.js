@@ -163,6 +163,7 @@ export function resetUploadState(state) {
   state.upload.pendingBlob = null;
   state.upload.pendingMime = "";
   state.upload.pendingConsent = true;
+  state.upload.pendingCaptureMetadata = null;
 }
 
 /**
@@ -242,6 +243,7 @@ export async function startFaceUpload(dom, state, setWizardError) {
       consent: true,
       requestId: generateFaceScanRequestId(),
       baselineToken: baselineToken || undefined,
+      captureMetadata: state.upload.pendingCaptureMetadata || undefined,
     });
 
     if (uploadResult.ok) {

@@ -169,6 +169,11 @@ export function postRecording(blob, endpointUrl, options) {
     ? String(options.baselineToken).trim()
     : "";
   if (baselineToken) formData.append("baseline_token", baselineToken);
+  if (options && options.captureMetadata && typeof options.captureMetadata === "object") {
+    try {
+      formData.append("capture_metadata", JSON.stringify(options.captureMetadata));
+    } catch (e) { /* ignore serialization errors — field is optional */ }
+  }
   formData.append(
     FaceScanUpload.fieldName,
     videoBlob,

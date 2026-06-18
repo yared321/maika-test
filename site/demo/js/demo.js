@@ -123,6 +123,7 @@ function createInitialState(stepCount) {
       pendingBlob: null,
       pendingMime: "",
       pendingConsent: true,
+      pendingCaptureMetadata: null,
     },
     assessment: {
       latestResult: null,
@@ -242,6 +243,7 @@ function bindEvents(dom, state, controllers) {
     state.upload.pendingBlob = detail.blob;
     state.upload.pendingMime = detail.recordedMime || detail.blob.type || "";
     state.upload.pendingConsent = detail.consentGiven !== false;
+    state.upload.pendingCaptureMetadata = detail.captureMetadata || null;
     state.upload.completed = false;
     if (state.currentStep === 2) {
       state.emotionViz.postScanValenceConfirmed = false;

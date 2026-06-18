@@ -756,6 +756,7 @@ function createRecordingController(getCamera, onResetUi) {
               baseTxt: baseTxt,
               consentGiven: hasFaceScanConsent(),
               qualityTimeline: context.qualityTimeline || [],
+              captureMetadata: context.cameraMetadata || null,
             },
           }),
         );
