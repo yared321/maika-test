@@ -773,6 +773,21 @@
                           </div>
                         </div>
                       </div>
+                      <div
+                        class="fps-skip-banner hidden"
+                        id="fps-skip-banner"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <p class="fps-skip-message">Camera running slower than 15 fps. Try closing other apps.</p>
+                        <button
+                          type="button"
+                          class="btn btn-fps-skip"
+                          id="btn-fps-skip"
+                        >
+                          Record anyway
+                        </button>
+                      </div>
                       <div class="actions scan-actions" id="scan-actions">
                         <button
                           type="button"
@@ -780,6 +795,13 @@
                           id="btn-restart-camera"
                         >
                           Restart camera
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-skip-scan hidden"
+                          id="btn-skip-scan"
+                        >
+                          Skip scan
                         </button>
                         <button
                           type="button"
