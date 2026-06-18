@@ -66,8 +66,8 @@ them.
 | `FACE_QUALITY_HISTORY_LEN` | `24` | Rolling-window length (samples) for brightness/green/motion/frame-dt history used by the temporal checks. |
 | `FACE_MAX_BRIGHTNESS_STD` | `15` | Max stddev of recent brightness samples before check 10 (brightness stability) fails — active once ≥8 samples exist. |
 | `FACE_MAX_HEAD_MOTION_FRAC_PER_SAMPLE` | `0.028` | Max average per-sample head movement (fraction of crop width) before check 11 (head motion) fails — active once ≥6 samples exist. |
-| `FACE_MIN_STABLE_FPS` | `7` | Minimum effective frame rate before check 12 (frame-rate stability) fails — active once ≥8 frame-interval samples exist. |
-| `FACE_MAX_FRAME_DT_STD_RATIO` | `0.45` | Max allowed jitter (stddev/mean ratio of frame intervals) before check 12 fails. |
+| `FACE_MIN_STABLE_FPS` | `15` | Minimum effective frame rate before check 12 (frame-rate stability) fails — active once ≥8 frame-interval samples exist. Was `7` before rVFC tuning; raised to `15` with tiered FPS warnings (15–24 fps allowed with amber UI). As of `face_scan_fps_monitor.js`, those samples are real camera frame intervals (via `requestVideoFrameCallback`), not the old tick-cadence approximation — at ~30fps the ≥8-sample threshold is now reached in a few hundred ms instead of ~1s. |
+| `FACE_MAX_FRAME_DT_STD_RATIO` | `0.85` | Max allowed jitter (stddev/mean ratio of frame intervals) before check 12 fails. Retuned for rVFC-backed ~30fps intervals (was `0.45` for 120ms poll cadence). |
 | `FACE_PRELIMINARY_RPPG_ENABLED` | `false` | Master switch for the optional check 13 (preliminary rPPG signal proxy) — disabled by default, so 13 is always a no-op pass today. |
 | `FACE_PRELIMINARY_RPPG_MIN_GREEN_STD` / `MAX_GREEN_STD` | `0.8` / `30` | If check 13 were enabled, the acceptable stddev range of the green-channel signal. |
 
@@ -89,6 +89,18 @@ through degraded quality or abort and discard the whole attempt.
 |---|---|---|
 | `RECORD_VIDEO_BPS_MP4` | `2200000` | Target video bitrate (bps) when the browser records to MP4. |
 | `RECORD_VIDEO_BPS_WEBM` | `1800000` | Target video bitrate (bps) when the browser records to WebM. |
+
+### Phone trial toggles (`face_scan_flow_controller.js`)
+
+Production defaults: both **`false`**. Full measured impact in
+[face-scan-recording-performance.md](face-scan-recording-performance.md).
+
+| Constant | Default | Impacts |
+|---|---|---|
+| `PHONE_RECORD_LUMINANCE_CHECKS_ENABLED` | `false` | When `false`, phone record skips checks 6–9 (`skipRecordLuminanceChecks: true`). Align still enforces lighting. |
+| `PHONE_RECORD_MESH_ENABLED` | `false` | When `false`, mesh cleared during record and BlazeFace used (`skipMeshDuringRecord: true`, `useDetectorDuringRecord: true`). When `true`, mesh stays on and Landmarker runs during record. |
+
+Debug metadata mirrors cfg: `skip_record_luminance_checks`, `skip_mesh_during_record`.
 
 ### Runtime config via `<meta>` tags in `site/demo/index.html`
 
@@ -140,6 +152,21 @@ site/demo/js/controller/face_scan_warmup.js
   detector. A dependency of face_scan_camera_stream.js, not of the
   composition root directly.
 
+site/demo/js/controller/face_scan_fps_monitor.js
+  Real delivered-FPS measurement via requestVideoFrameCallback (with a
+  requestAnimationFrame + video.currentTime fallback), replacing the old
+  tick-cadence approximation. Runs continuously from stream-attached to
+  stream-teardown, feeding ctx.quality.frameDtHistory directly (same field
+  the temporal-stability check already reads). Also maintains a
+  recording-phase-scoped sample set (reset at record start, finalized into
+  ctx.cameraMetadata's delivered_fps_overall/mean/median/p10/min/std,
+  frame_count/estimated_frame_count (total frames captured, both equal),
+  frame_timestamp_jitter_ms,
+  long_frame_*, recording_duration_ms/duration_ms, max_inter_frame_gap_ms, fps_monitor_mode,
+  suppressed_gap_* fields at record stop). A dependency of
+  face_scan_camera_stream.js and face_scan_recording_controller.js, not of
+  the composition root directly.
+
 site/demo/js/controller/face_scan_align_loop.js
   Alignment polling loop (tickAlignment / startAlignLoop / stopAlignLoop)
   and the 3-2-1 countdown (runCountdownThenRecord / cancelCountdown) that
@@ -163,9 +190,12 @@ site/demo/js/controller/face_scan_detection_utils.js
   No dependencies, used by both polling loops.
 
 site/demo/js/controller/face_scan_mesh_renderer.js
-  Canvas renderer for the face-mesh wireframe overlay (createFaceMeshRenderer
-  → { draw, clear }). Maps normalized MediaPipe landmarks onto the canvas
-  through the same object-fit:cover crop math used for the alignment ellipse.
+  Animated canvas renderer for the face-mesh overlay (createFaceMeshRenderer
+  → { draw, clear }). Runs a self-pacing RAF loop with a 3.6 s cycle: mesh
+  builds left→right, holds full, sweeps with a glow bar, shows sparse tracking
+  dots, then fades. All moving elements are constrained to the live face
+  bounding box. Upper-face landmarks stretched upward by MESH_EXPAND_TOP=1.30
+  to reach the full forehead. Color is purple (aligning) or green-teal (ok).
 
 site/demo/js/controller/face_scan_quality_checks.js
   The 13 face-quality checks (face present, centered, size, pose, anatomy
@@ -403,3 +433,44 @@ depend on — neither imports anything from the 5 internal modules directly.
 This means the internal split (stream/align/record/fx/detection-utils) can
 be refactored further without touching either consumer, as long as this
 method list stays stable.
+
+## Camera warmup phase
+
+A fixed **2500 ms** warmup (`WARMUP_DURATION_MS`) runs in `face_scan_warmup.js`
+right after the camera stream attaches and before any alignment quality-gating
+starts. Its purpose: let auto-exposure/autofocus settle, take a one-time ambient
+brightness/FPS baseline, and prime the face detector for align's first real tick.
+
+Key design choices:
+- The warmup baseline is stored in `ctx.warmupSummary` (not in
+  `ctx.quality.brightnessHistory` / `frameDtHistory`), because `startAlignLoop`
+  resets those arrays the moment it starts — feeding warmup samples into them
+  would just get wiped.
+- The warmup FPS figure (`ctx.warmupSummary.baselineFps`) is a rough
+  tick-interval average, not a `face_scan_fps_monitor.js` sample — it's a
+  one-time snapshot for diagnostics only.
+- UI: `onCameraReady` shows "Hold steady — preparing your camera…" during
+  warmup; `onAlignmentStart` (fired when warmup completes) switches to the
+  alignment-guide tip.
+
+## Post-scan startup behavior
+
+Post-music scan uses a single entry path in `site/demo/js/demo.js`:
+
+- `startPostScanCapture(dom, state)` handles all setup and starts the camera
+  once via `restartFaceScanForNewRecording()`.
+- A previously stray `requestAnimationFrame(autoStartFaceScanDirectly)` call
+  that could cause a duplicate camera start was removed.
+
+Both controllers (`camera` and `recording`) are created **once** at page load and
+reused across all scan attempts — including the post-music second scan. See
+[Shared state objects](#shared-state-objects) for the `ctx`/`state` distinction.
+
+## Related documentation
+
+- [face-scan-recording-performance.md](face-scan-recording-performance.md) —
+  phone vs desktop tuning, frame-count targets, rollback guide.
+- [face-scan-visual-overlay.md](face-scan-visual-overlay.md) —
+  face mesh canvas overlay: animation cycle, forehead expansion, sweep mechanics.
+- [face-scan-pre-production-testing.md](face-scan-pre-production-testing.md) —
+  pre-production testing checklist and sign-off template.
