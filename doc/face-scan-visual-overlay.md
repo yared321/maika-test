@@ -21,16 +21,17 @@ animation synchronized to the live landmark positions each frame.
 |------|-------|
 | Canvas element | `#face-scan-mesh` in `site/demo/index.html` |
 | CSS positioning | `site/demo/css/face_scanner_fx.css` (absolute over video; opacity fade-in/out) |
-| Renderer | `site/demo/js/controller/face_scan_mesh_renderer.js` |
+| Renderer | `site/demo/js/controller/face_scan/mesh_renderer.js` |
 | Public API | `createFaceMeshRenderer(canvas, video)` → `{ draw, clear }` |
-| Tessellation data | `FaceScanFaceModel.getFaceMeshTesselation()` in `face_scan_face_model.js` (populated once FaceLandmarker loads) |
+| Tessellation data | `FaceScanFaceModel.getFaceMeshTesselation()` in `face_scan/face_model.js` (populated once FaceLandmarker loads) |
 
 The renderer is driven on every detection tick:
-- **`syncFaceMesh(landmarks, ok)`** (in `face_scan_camera_fx.js`) calls
+- **`syncFaceMesh(landmarks, ok)`** (in `face_scan/camera_fx.js`) calls
   `renderer.draw(landmarks, ok)` — starts the animation loop with fresh landmark data.
 - **`clearFaceMesh()`** calls `renderer.clear()` — stops the loop and clears the canvas.
-- Called from `face_scan_align_loop.js` (every tick on desktop; every 2nd tick on
-  phone) and `face_scan_record_loop.js` (clears mesh during record on phone by default).
+- Called from `face_scan/align_loop.js` (desktop: every tick for full align; phone:
+  mesh during first 2 s intro only, throttled every 2nd tick, then cleared) and
+  `face_scan/record_loop.js` (clears mesh during record on phone by default).
 
 ---
 
@@ -175,9 +176,13 @@ the end of the phase.
 
 On phone, the mesh overlay is **cleared** during the 30-second recording phase
 by default (`PHONE_RECORD_MESH_ENABLED = false` → `clearFaceMesh()` every tick
-in `face_scan_record_loop.js`). Alignment still shows the full animated mesh.
-During align on phone, `syncFaceMesh` is called every **2nd** tick
-(`alignMeshEveryNTicks: 2`) to reduce main-thread load.
+in `face_scan/record_loop.js`).
+
+During **align**, phone shows the animated mesh for the first **2 s** only
+(`PHONE_MESH_INTRO_MS`); after that the mesh is cleared and BlazeFace runs for
+the rest of pre-scan. During that 2 s intro, `syncFaceMesh` is called every
+**2nd** tick (`alignMeshEveryNTicks: 2`) to reduce main-thread load. Desktop
+keeps full Landmarker + mesh for the entire align phase.
 
 See [face-scan-recording-performance.md](face-scan-recording-performance.md#4-face-mesh-off-during-record)
 for the measured frame-count impact of enabling mesh during record on phone.

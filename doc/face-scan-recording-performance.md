@@ -46,7 +46,7 @@ when `?faceScanDebug=1` or `maika-face-scan-debug` is on).
 
 **Current phone profile ≈ 92% of Mac frame count** (~70 frames remaining at ~830 vs ~901).
 
-### Phone trial toggles (`face_scan_flow_controller.js`)
+### Phone trial toggles (`face_scan/flow_controller.js`)
 
 Production defaults (both `false`):
 
@@ -62,7 +62,7 @@ Both flags are independent but mesh-on implicitly disables BlazeFace during reco
 ## How phone vs desktop is chosen
 
 Detection runs once at init via `isLikelyPhoneRecordingDevice()` in
-`face_scan_flow_controller.js`:
+`face_scan/flow_controller.js`:
 
 1. `navigator.userAgentData.mobile === true` when available (Chrome Android), or
 2. `(pointer: coarse)` **and** `(hover: none)` (typical phones; excludes most touch laptops)
@@ -77,6 +77,9 @@ Verify on a run via debug metadata:
 "record_framing_interval_ms": 350,
 "skip_record_luminance_checks": true,
 "skip_mesh_during_record": true,
+"skip_mesh_during_align": true,
+"use_detector_during_align": true,
+"phone_mesh_intro_ms": 2000,
 "defer_record_detector_load": true,
 "record_video_bps": 1200000
 ```
@@ -88,7 +91,7 @@ Verify on a run via debug metadata:
 These apply to **both** device classes. They improve measurement accuracy and
 align-phase behavior; they do not reduce recording-phase quality on desktop.
 
-### 1. Real delivered-FPS monitor (`face_scan_fps_monitor.js`)
+### 1. Real delivered-FPS monitor (`face_scan/fps_monitor.js`)
 
 - Uses `video.requestVideoFrameCallback` (RAF + `video.currentTime` fallback).
 - Feeds `ctx.quality.frameDtHistory` for quality check 12 (FPS stability).
@@ -109,7 +112,7 @@ changes. This does not by itself increase frame count.
 **Why it matters:** Avoids false FPS-stability failures on healthy ~30 FPS
 streams. Does not reduce main-thread load.
 
-### 3. Camera warmup (`face_scan_warmup.js`)
+### 3. Camera warmup (`face_scan/warmup.js`)
 
 - Fixed **2500 ms** after stream attach, before align gating (client spec).
 - Separate `ctx.warmupSummary` baseline; does not pollute align rolling histories.
@@ -117,12 +120,20 @@ streams. Does not reduce main-thread load.
 **Why it matters:** Stabilizes exposure/focus before quality gating; indirect
 effect on record quality, not a record-phase CPU cut.
 
-### 4. Align phase unchanged on both devices
+### 4. Align phase (device-specific)
+
+Shared on both devices:
 
 - **120 ms** align loop (`ALIGN_INTERVAL_MS`)
-- Full **Face Landmarker** (468-point mesh + box)
 - Full quality checks 1–13 during align (including luminance 6–9)
-- Mesh drawn every align tick on desktop; every **2nd** tick on phone only (see below)
+
+| | Desktop | Phone (default profile) |
+|---|---------|-------------------------|
+| Detector | **Landmarker** every tick | **Landmarker** first 2 s, then **BlazeFace** |
+| Mesh overlay | Every tick | First **2 s** only (`PHONE_MESH_INTRO_MS`), throttled every 2nd tick; cleared after |
+| BlazeFace prefetch | At bootstrap (with Landmarker) | During countdown via `ensureRecordDetectorLoaded()` |
+
+See [§4b Phone align mesh intro](#4b-phone-align-mesh-intro-2-s-landmarker-then-lite-path) below.
 
 ---
 
@@ -138,7 +149,7 @@ Quality Control Plan (V2). They run on both phone and desktop.
 **Before:** `check1FacePresent` passed whenever any face box was detected (`!!box`).
 Two people in frame would not block the countdown or recording.
 
-**After:** The raw detection payload (`face_scan_face_model.js`) now carries a
+**After:** The raw detection payload (`face_scan/face_model.js`) now carries a
 `faceCount` field:
 
 - **Landmarker path:** `faceCount = res.faceLandmarks.length`
@@ -154,20 +165,20 @@ The `faceCount` value flows through:
 
 ```
 detectWithLandmarker / detectWithDetector
-  → extractFaceCountFromDetection()       (face_scan_detection_utils.js)
-  → evaluateFaceQuality(…, faceCount)     (face_scan_quality_checks.js)
+  → extractFaceCountFromDetection()       (face_scan/detection_utils.js)
+  → evaluateFaceQuality(…, faceCount)     (face_scan/quality_checks.js)
   → check1FacePresent(box, faceCount)
 ```
 
-**Files changed:** `face_scan_face_model.js`, `face_scan_detection_utils.js`,
-`face_scan_quality_checks.js`, `face_scan_align_loop.js`,
-`face_scan_record_loop.js`
+**Files changed:** `face_scan/face_model.js`, `face_scan/detection_utils.js`,
+`face_scan/quality_checks.js`, `face_scan/align_loop.js`,
+`face_scan/record_loop.js`
 
 ---
 
 ### 2. FPS minimum gate raised: 7 → 15
 
-`FACE_MIN_STABLE_FPS` in `face_scan_flow_controller.js` was `7`; it is now `15`.
+`FACE_MIN_STABLE_FPS` in `face_scan/flow_controller.js` was `7`; it is now `15`.
 
 The check-12 gate in `evaluateTemporalQuality` fires once ≥ 8 rVFC samples are
 collected. It now blocks the countdown until the device sustains ≥ 15 fps (from
@@ -176,43 +187,34 @@ those samples). A device running at, say, 12 fps will fail check 12 with:
 
 This matches the spec requirement: *FPS minimum ≥ 15*.
 
-**File changed:** `face_scan_flow_controller.js`
+**File changed:** `face_scan/flow_controller.js`
 
 ---
 
-### 3. "Record anyway" skip UI when FPS < 15
+### 3. "Record anyway" skip UI when FPS < 15 (debug only)
 
-Because some devices genuinely cannot reach 15 fps (old phones, heavily loaded
-browsers), a hard block would lock those users out entirely. A skip banner is now
-shown during the align phase when the FPS gate is the only failure.
+Production blocks below 15 fps during align — users see the placement error and must
+**Restart camera** (no upload below threshold). For local testing on slow devices,
+face-scan **debug mode** exposes an optional bypass.
 
-**How it works:**
+**Production:** `skipFpsGate` is ignored unless debug is enabled (`?faceScanDebug=1`
+or `maika-face-scan-debug="true"`). The FPS skip banner is hidden.
 
-1. `evaluateTemporalQuality` returns `fpsLow: true` on the result when
-   `fps < minFps` and `ctx.skipFpsGate` is not set.
-2. `tickAlignment` in `face_scan_align_loop.js` toggles the banner:
-   ```js
-   state.el.fpsScanSkipBanner.classList.toggle("hidden", !quality.fpsLow);
-   ```
-3. **"Record anyway"** button click sets `context.skipFpsGate = true` and hides
-   the banner.
-4. On the next tick, `evaluateTemporalQuality` detects `skipFpsGate` and replaces
-   the failing check-12 entry with a passing one carrying `{ skippedGate: true }`,
-   so alignment can proceed to countdown normally.
-5. `resetUiToStart` clears `skipFpsGate` and hides the banner so the gate is
-   enforced fresh on each new scan attempt.
+**Debug mode:**
 
-**HTML element:** `<div id="fps-skip-banner">` (above `#scan-actions`).  
+1. `evaluateTemporalQuality` returns `fpsLow: true` when `fps < minFps` and
+   `skipFpsGate` is not set.
+2. `tickAlignment` shows `#fps-skip-banner` only when debug is on and `fpsLow`.
+3. **"Record anyway"** sets `context.skipFpsGate = true` (debug click handler only).
+4. Next tick: check 12 passes with `{ skippedGate: true }` in metadata.
+5. `resetUiToStart` clears `skipFpsGate` on each new attempt.
+
+**HTML element:** `<div id="fps-skip-banner">` (debug visibility only).  
 **CSS:** `.fps-skip-banner`, `.fps-skip-message`, `.btn-fps-skip` in
-`face_scanner.css` (amber/yellow palette to signal a degraded state).
+`face_scanner.css`.
 
-The skipped-gate flag is visible in debug metadata: the `12_frame_rate_stable`
-check detail will contain `"skippedGate": true` when a user proceeded through the
-skip path.
-
-**Files changed:** `face_scan_quality_helpers.js`, `face_scan_quality_checks.js`,
-`face_scan_align_loop.js`, `face_scan_flow_controller.js`,
-`site/demo/index.html`, `site/demo/css/face_scanner.css`
+**Files:** `face_scan/quality_helpers.js`, `face_scan/align_loop.js`,
+`face_scan/flow_controller.js`, `site/demo/index.html`, `site/demo/css/face_scanner.css`
 
 ---
 
@@ -222,7 +224,7 @@ The spec defines graduated FPS behavior, not just a binary pass/fail at 15:
 
 | Delivered FPS | Spec requirement | Implementation |
 |--------------|------------------|----------------|
-| < 15 | Block or offer skip | Hard block + skip banner (see §3 above) |
+| < 15 | Block (production) | Hard block; restart camera. Debug: optional skip banner (see §3) |
 | 15–19 | Allow only if face/light/motion are good | Passes check 12; placement status shows **"FPS is low (N fps). Close background apps for better quality."** |
 | 20–24 | Allow with quality warning | Passes check 12; placement status shows **"FPS slightly low (N fps). Recording quality may be limited."** |
 | ≥ 25 | Acceptable / preferred | Silent pass, normal alignment messages |
@@ -242,47 +244,41 @@ the warning text, using the `"wait"` (amber) placement state instead of `"good"`
 The stable-hit counter still increments; the countdown fires normally once hits are
 reached. Only the user-facing guidance message changes.
 
-**Files changed:** `face_scan_quality_helpers.js`, `face_scan_quality_checks.js`,
-`face_scan_align_loop.js`
+**Files changed:** `face_scan/quality_helpers.js`, `face_scan/quality_checks.js`,
+`face_scan/align_loop.js`
 
 ---
 
-### 5. "Skip scan" offer after repeated hard gate failures
+### 5. Two-step assessment upload (baseline + post)
 
-The spec requires: *"If the user cannot satisfy the hard gates after a few
-attempts, offer skip scan."*
+The demo wizard uploads each scan to paired endpoints — not the legacy single
+`/v1/web/assess` path.
 
-A **"Skip scan"** button (`#btn-skip-scan`) is hidden by default and shown in the
-recovery panel once `retryCount` reaches `SKIP_SCAN_OFFER_AFTER_RETRIES = 3`.
-Only quality-triggered restarts (`onQualityRestart`) increment this counter —
-manual cancels do not.
+| Phase | Endpoint | Pairing |
+|-------|----------|---------|
+| Baseline (wizard step 1) | `POST …/assess-baseline` | Response must include `baseline_token` |
+| Post (wizard step 3) | `POST …/assess-post` | Requires `baseline_token` from baseline |
 
-**How it works:**
+**Production rules** (`upload_controller.js`):
 
-1. Each `onQualityRestart` call increments `context.retryCount`.
-2. When `retryCount >= 3`, the button is revealed alongside "Restart camera":
-   ```js
-   cameraDOM.btnSkipScan.classList.toggle("hidden", !offerSkip);
-   ```
-3. Clicking "Skip scan" calls `resetUiToStart` (closes the scan panel, same as
-   Cancel) and fires `maika-demo:face-scan-skipped` with `{ retryCount }` in
-   `detail` — the outer wizard can listen for this to handle the skip-scan flow
-   (e.g. proceed without a face scan or mark it as skipped).
-4. `resetUiToStart` and `openScanPanelAndRequestCamera` both hide the button so
-   it starts hidden on every fresh attempt.
+- Baseline without `baseline_token` in the response → error; user re-records baseline.
+- Post without in-memory `baselineToken` → upload blocked; `maika-demo:baseline-pairing-required` resets wizard to baseline step.
+- **No silent fallback** to `…/assess` when pairing is missing.
 
-The button is styled as a muted secondary action (low-contrast border, no fill)
-so it does not compete visually with "Restart camera".
+Legacy `…/assess` remains for standalone/non-wizard upload paths only.
 
-**HTML element:** `<button id="btn-skip-scan">` inside `#scan-actions`.  
-**CSS:** `.btn-skip-scan` in `face_scanner.css`.
-
-**Files changed:** `face_scan_flow_controller.js`, `site/demo/index.html`,
-`site/demo/css/face_scanner.css`
+**Files:** `upload_controller.js`, `service.js`, `demo.js`
 
 ---
 
-### 6. Internal quality grade A / B / C / D
+### 6. ~~"Skip scan" offer~~ (removed)
+
+The **Skip scan** button was removed from production. Quality failures offer
+**Restart camera** only (`#btn-restart-camera` in recovery UI).
+
+---
+
+### 7. Internal quality grade A / B / C / D
 
 The spec defines internal acquisition grades for metadata (never shown to the
 user). `computeQualityGrade` runs once at recording stop, after all finalize
@@ -307,7 +303,7 @@ delivery quality. `long_frame_fraction` captures stall severity separately.
 **Example:** `face_ok_fraction: 0.825`, `delivered_fps_overall: 29.78` → grade
 **B** (fps clears A threshold but ok_fraction 0.825 < 0.90).
 
-**File changed:** `face_scan_recording_controller.js`
+**File changed:** `face_scan/recording_controller.js`
 
 ---
 
@@ -317,7 +313,7 @@ The client spec lists optional face-quality metadata fields to attach to each
 recording. This section tracks which are implemented, where the data comes from,
 and what remains.
 
-All collection happens in `face_scan_record_collector.js` (`collectRecordTick`
+All collection happens in `face_scan/record_collector.js` (`collectRecordTick`
 called every detection tick during record) and is finalized at recording stop
 (`finalizeRecordCollector`). Fields only appear in the debug JSON when their
 source arrays have sufficient data — desktop-only fields are absent on mobile
@@ -453,7 +449,7 @@ but **less often**, freeing the main thread for camera delivery and encode.
 **Tradeoff:** Coarser mid-record quality feedback; brief lighting/pose issues
 lasting &lt; 350 ms may be missed.
 
-**Files:** `face_scan_flow_controller.js`, `face_scan_record_loop.js`
+**Files:** `face_scan/flow_controller.js`, `face_scan/record_loop.js`
 
 ---
 
@@ -470,7 +466,7 @@ Logged as `record_video_bps` in metadata.
 **Tradeoff:** Slightly lower encode quality; usually fine for rPPG. Small FPS
 gain on its own; helps when encode was contending with detection.
 
-**Files:** `face_scan_flow_controller.js`, `face_scan_recording_controller.js`
+**Files:** `face_scan/flow_controller.js`, `face_scan/recording_controller.js`
 
 ---
 
@@ -478,17 +474,18 @@ gain on its own; helps when encode was contending with detection.
 
 | | Phone | Desktop |
 |---|-------|---------|
-| Align | Face **Landmarker** | Face **Landmarker** |
+| Align (first 2 s) | Face **Landmarker** + mesh intro | Face **Landmarker** + mesh |
+| Align (after 2 s) | **BlazeFace FaceDetector** (box only) | Face **Landmarker** (full mesh) |
 | Record | **BlazeFace FaceDetector** (box only) | Face **Landmarker** (full mesh) |
 
 `useDetectorDuringRecord: true` → `detectSingleFaceForRecord()` in
-`face_scan_record_loop.js`.
+`face_scan/record_loop.js`.
 
 **Tradeoff:** No landmarks during record on phone → check 5 uses **box fallback**
-instead of skin/landmark visibility (`face_scan_quality_helpers.js`). Align
+instead of skin/landmark visibility (`face_scan/quality_helpers.js`). Align
 already validated visibility.
 
-**Files:** `face_scan_record_loop.js`, `face_scan_face_model.js`
+**Files:** `face_scan/record_loop.js`, `face_scan/face_model.js`
 
 ---
 
@@ -497,9 +494,28 @@ already validated visibility.
 `skipMeshDuringRecord: true` → `clearFaceMesh()` on every record tick; no
 wireframe canvas work while encoding.
 
-**Tradeoff:** No live mesh overlay during the 30 s take (align still shows mesh).
+**Tradeoff:** No live mesh overlay during the 30 s take. On phone, align shows mesh for the first 2 s only (`PHONE_MESH_INTRO_MS`); desktop keeps mesh for the full align phase.
 
-**Files:** `face_scan_record_loop.js`, `face_scan_camera_fx.js`
+**Files:** `face_scan/record_loop.js`, `face_scan/camera_fx.js`, `face_scan/align_loop.js`
+
+---
+
+### 4b. Phone align mesh intro (2 s Landmarker, then lite path)
+
+**Phone only** — fixes pre-scan FPS on phones without affecting desktop.
+
+| Phase | Phone align | Desktop align |
+|-------|-------------|---------------|
+| First 2 s | Landmarker + animated mesh (`syncFaceMesh`) | — (not used) |
+| After 2 s | BlazeFace + mesh cleared (`detectSingleFaceForRecord`) | — |
+| Full align | — | Landmarker + mesh every tick |
+
+Controlled by `getDevicePerfConfig()`:
+
+- `phoneMeshIntroMs: 2000` when `isPhone && !PHONE_RECORD_MESH_ENABLED`
+- `phoneMeshIntroMs: 0` on desktop → `align_loop.js` keeps full mesh for entire align
+
+**Files:** `face_scan/flow_controller.js`, `face_scan/align_loop.js`
 
 ---
 
@@ -518,8 +534,8 @@ wireframe canvas work while encoding.
 **Tradeoff:** Lighting can change mid-take without re-checking 6–9. Acceptable if
 align gate is trusted and users hold steady lighting.
 
-**Files:** `face_scan_quality_checks.js`, `face_scan_record_loop.js`,
-`face_scan_align_loop.js`
+**Files:** `face_scan/quality_checks.js`, `face_scan/record_loop.js`,
+`face_scan/align_loop.js`
 
 ---
 
@@ -537,19 +553,20 @@ Desktop loads **both** Landmarker + BlazeFace at bootstrap when
 **Tradeoff:** BlazeFace must finish loading before first record tick; countdown
 window usually covers this.
 
-**Files:** `face_scan_face_model.js`, `face_scan_align_loop.js`,
-`face_scan_helpers.js`
+**Files:** `face_scan/face_model.js`, `face_scan/align_loop.js`,
+`face_scan/helpers.js`
 
 ---
 
-### 7. Throttled mesh during align (every 2nd tick)
+### 7. Throttled mesh during align (phone intro only)
 
-`alignMeshEveryNTicks: 2` → `syncFaceMesh` runs on every other align sample only.
+`alignMeshEveryNTicks: 2` on phone → `syncFaceMesh` runs on every other align
+sample during the 2 s mesh intro only (desktop: every tick).
 
-**Tradeoff:** Mesh updates at ~4 Hz instead of ~8 Hz during align; minor visual
-lag only.
+**Tradeoff:** During the phone intro, mesh updates at ~4 Hz instead of ~8 Hz;
+minor visual lag only. After 2 s the mesh is cleared entirely.
 
-**Files:** `face_scan_align_loop.js`
+**Files:** `face_scan/align_loop.js`
 
 ---
 
@@ -563,10 +580,11 @@ all shared improvements above, plus the full recording-phase workload.
 | Record loop interval | **120 ms** | **350 ms** |
 | Record bitrate (MP4) | **2.2 Mbps** | **1.2 Mbps** |
 | Detector during record | **Landmarker** | **BlazeFace** |
+| Detector during align | **Landmarker** (every tick) | **Landmarker** 2 s intro, then **BlazeFace** |
 | Mesh during record | **On** | **Off** |
 | Luminance checks 6–9 during record | **Every tick** | **Skipped** (align-gated) |
 | Model load at startup | **Landmarker + BlazeFace** | **Landmarker only** (BlazeFace deferred) |
-| Mesh during align | **Every tick** | **Every 2nd tick** |
+| Mesh during align | **Every tick** (full Landmarker) | **2 s intro** then cleared; BlazeFace after |
 | `majorAbortStreak` | **100** | **34** |
 
 Desktop already achieves ~901 frames without phone reductions.
@@ -601,19 +619,22 @@ cuts.
 
 | File | Role |
 |------|------|
-| `site/demo/js/controller/face_scan_flow_controller.js` | Phone detection, `getDevicePerfConfig()`, `PHONE_RECORD_LUMINANCE_CHECKS_ENABLED`, `PHONE_RECORD_MESH_ENABLED`, bitrate constants, `FACE_MIN_STABLE_FPS`, skip-FPS/skip-scan wiring |
-| `site/demo/js/controller/face_scan_record_loop.js` | Record loop, detector choice, metrics sampling, `faceCount` extraction |
-| `site/demo/js/controller/face_scan_align_loop.js` | Align mesh throttle, deferred detector prefetch, skip-FPS banner toggle, FPS tier warning message |
-| `site/demo/js/controller/face_scan_quality_checks.js` | Skip checks 6–9, `check1FacePresent` multi-face logic, `fpsLow` / `fpsTier` / `fpsWarning` propagation |
-| `site/demo/js/controller/face_scan_quality_helpers.js` | `evaluateTemporalQuality` — FPS gate, `skipFpsGate` bypass, `fpsLow` flag, `fpsTier` + `fpsWarning` for tiered behavior |
-| `site/demo/js/controller/face_scan_detection_utils.js` | `extractFaceCountFromDetection` |
-| `site/demo/js/utils/face_scan_face_model.js` | Landmarker vs BlazeFace, deferred load, `faceCount` in detection payloads |
-| `site/demo/js/controller/face_scan_fps_monitor.js` | Delivered FPS measurement |
-| `site/demo/js/controller/face_scan_camera_stream.js` | Debug metadata flags at stream start (`skip_record_luminance_checks`, `skip_mesh_during_record`) |
-| `site/demo/js/controller/face_scan_recording_controller.js` | `record_video_bps` in metadata, `computeQualityGrade` → `quality_grade`, calls `finalizeRecordCollector` |
-| `site/demo/js/controller/face_scan_record_collector.js` | Per-tick stats collector: `initRecordCollector`, `collectRecordTick`, `finalizeRecordCollector` — writes all optional metadata fields |
-| `site/demo/index.html` | `#fps-skip-banner`, `#btn-fps-skip`, `#btn-skip-scan` elements |
-| `site/demo/css/face_scanner.css` | `.fps-skip-banner`, `.fps-skip-message`, `.btn-fps-skip`, `.btn-skip-scan` styles |
+| `site/demo/js/controller/face_scan/flow_controller.js` | Phone detection, `getDevicePerfConfig()`, trial toggles, `PHONE_MESH_INTRO_MS`, `FACE_MIN_STABLE_FPS`, restart-camera recovery |
+| `site/demo/js/controller/face_scan/upload_controller.js` | Two-step upload routing (`assess-baseline` / `assess-post`), `baseline_token` pairing, no silent `/assess` fallback |
+| `site/demo/js/service/service.js` | `ASSESS_PATHS`, `postRecording`, multipart FormData including `baseline_token` |
+| `site/demo/js/demo.js` | Wizard step routing, `maika-demo:baseline-pairing-required` → reset to baseline |
+| `site/demo/js/controller/face_scan/record_loop.js` | Record loop, detector choice, metrics sampling, `faceCount` extraction |
+| `site/demo/js/controller/face_scan/align_loop.js` | Phone-only 2 s mesh intro then BlazeFace; desktop full mesh; deferred detector prefetch; debug-only FPS skip banner |
+| `site/demo/js/controller/face_scan/quality_checks.js` | Skip checks 6–9, `check1FacePresent` multi-face logic, `fpsLow` / `fpsTier` / `fpsWarning` propagation |
+| `site/demo/js/controller/face_scan/quality_helpers.js` | `evaluateTemporalQuality` — FPS gate, debug-only `skipFpsGate`, `fpsTier` + `fpsWarning` |
+| `site/demo/js/controller/face_scan/detection_utils.js` | `extractFaceCountFromDetection` |
+| `site/demo/js/utils/face_scan/face_model.js` | Landmarker vs BlazeFace, deferred load, `faceCount` in detection payloads |
+| `site/demo/js/controller/face_scan/fps_monitor.js` | Delivered FPS measurement |
+| `site/demo/js/controller/face_scan/camera_stream.js` | Debug metadata flags at stream start |
+| `site/demo/js/controller/face_scan/recording_controller.js` | `record_video_bps` in metadata, `computeQualityGrade` → `quality_grade`, calls `finalizeRecordCollector` |
+| `site/demo/js/controller/face_scan/record_collector.js` | Per-tick stats collector |
+| `site/demo/index.html` | `#fps-skip-banner`, `#btn-fps-skip` (debug-only visibility) |
+| `site/demo/css/face_scanner.css` | `.fps-skip-banner`, `.btn-fps-skip` styles |
 
 ---
 
@@ -632,10 +653,11 @@ cuts.
 Confirm `1_face_present` check has `pass: false` and
 `detail.reason === "multiple_faces"` with `detail.faceCount ≥ 2`.
 
-**FPS gate (≥ 15):** On a slow device, confirm check 12 shows
-`pass: false` with `detail.fps < 15` and the yellow skip banner appears in the
-UI. After clicking "Record anyway", confirm check 12 detail contains
-`"skippedGate": true` in the metadata.
+**FPS gate (≥ 15, production):** On a slow device with debug **off**, confirm check 12
+shows `pass: false` with `detail.fps < 15` and the user cannot proceed (restart only).
+
+**FPS skip (debug only):** With debug on, confirm the yellow skip banner appears.
+After clicking "Record anyway", confirm check 12 detail contains `"skippedGate": true`.
 
 **FPS tier warning (15–24):** On a device delivering 15–24 fps, check 12 should
 show `pass: true` with `detail.tier === "low"` or `"caution"`. The placement
@@ -645,10 +667,10 @@ status text should show the FPS warning message in amber rather than the normal
 **Normal FPS pass (≥ 25):** Check 12 shows `pass: true`, `detail.tier === "ok"`,
 no warning message, placement status is green.
 
-**Skip scan offer:** Trigger `onQualityRestart` three times (let recording abort
-on sustained quality failure three times). On the third recovery panel, confirm
-`#btn-skip-scan` is visible. Click it and confirm `maika-demo:face-scan-skipped`
-fires in the browser console with `detail.retryCount === 3`.
+**Two-step upload (wizard):** Complete baseline + post scans. Confirm baseline
+response includes `baseline_token` and post upload uses `assess-post` (not legacy
+`assess`). Clear `baselineToken` in devtools before post and confirm pairing
+failure resets to baseline step.
 
 **Quality grade:** After a successful take, confirm `quality_grade` is present in
 the metadata JSON. Grade should be `"A"` when `face_ok_fraction ≥ 0.90` and

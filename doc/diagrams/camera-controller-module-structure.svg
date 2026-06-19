@@ -1,6 +1,6 @@
 <svg width="680" height="440" viewBox="0 0 680 440" xmlns="http://www.w3.org/2000/svg" role="img">
 <title>Camera controller module structure</title>
-<desc>face_scan_camera_controller.js as a composition root: two external callers (flow controller, recording controller) call into it from above, it contains five internal modules (stream, align loop, record loop, overlay fx, detection utils), and it depends on three external modules below (quality checks, mesh renderer, warmup).</desc>
+<desc>face_scan/camera_controller.js as a composition root: two external callers (flow controller, recording controller) call into it from above, it contains five internal modules (stream, align loop, record loop, overlay fx, detection utils), and it depends on three external modules below (quality checks, mesh renderer, warmup).</desc>
 <defs>
 <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#73726c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
 </defs>
@@ -22,7 +22,7 @@
 
 <g>
 <rect x="70" y="100" width="540" height="260" rx="20" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
-<text x="340" y="132" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#3C3489">face_scan_camera_controller.js</text>
+<text x="340" y="132" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#3C3489">camera_controller.js</text>
 <text x="340" y="150" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#534AB7">composition root, builds shared state</text>
 </g>
 
