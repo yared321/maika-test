@@ -23,7 +23,7 @@ var RECORD_FRAMING_INTERVAL_MS_PHONE = 350;
 var PHONE_RECORD_LUMINANCE_CHECKS_ENABLED = false;
 /** Trial toggle: face-mesh overlay during phone record (needs Landmarker, not BlazeFace). */
 var PHONE_RECORD_MESH_ENABLED = false;
-/** Phone-only: show animated mesh for this long at the start of pre-scan (align). */
+/** Phone-only: show animated mesh for this long at the start of pre-scan (align). Desktop keeps full mesh for entire align (phoneMeshIntroMs = 0). */
 var PHONE_MESH_INTRO_MS = 2000;
 var STABLE_HIT_COUNT = 4;
 var MIN_ALIGN_MS = 5000;

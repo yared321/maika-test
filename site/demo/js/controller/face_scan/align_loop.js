@@ -13,7 +13,7 @@ import {
 } from "./detection_utils.js";
 import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./camera_fx.js";
 
-/** True during the first phoneMeshIntroMs of pre-scan — Landmarker + mesh run here only. */
+/** Phone-only: first phoneMeshIntroMs of pre-scan use Landmarker + mesh. */
 function isInAlignMeshIntroPeriod(state) {
   var introMs = Number(state.cfg.phoneMeshIntroMs) || 0;
   if (introMs <= 0) return false;
@@ -23,7 +23,7 @@ function isInAlignMeshIntroPeriod(state) {
   return performance.now() - started < introMs;
 }
 
-/** Landmarker during mesh intro; BlazeFace (record path) after intro on phone. */
+/** Landmarker always on desktop; phone uses Landmarker during mesh intro then BlazeFace. */
 function detectFaceForAlignPhase(state) {
   if (isInAlignMeshIntroPeriod(state)) {
     return H.detectSingleFace(state.el.preview);
@@ -32,6 +32,22 @@ function detectFaceForAlignPhase(state) {
     return H.detectSingleFaceForRecord(state.el.preview);
   }
   return H.detectSingleFace(state.el.preview);
+}
+
+/** Mesh during align: full Landmarker overlay on desktop; phone intro then cleared. */
+function syncAlignMeshDuringTick(state, landmarks, qualityOk) {
+  var meshEvery = Number(state.cfg.alignMeshEveryNTicks) || 1;
+  if (state.ctx.alignMeshTick % meshEvery !== 0) return;
+  var phoneIntroMs = Number(state.cfg.phoneMeshIntroMs) || 0;
+  if (phoneIntroMs <= 0) {
+    syncFaceMesh(state, landmarks, qualityOk);
+    return;
+  }
+  if (isInAlignMeshIntroPeriod(state)) {
+    syncFaceMesh(state, landmarks, qualityOk);
+  } else {
+    clearFaceMesh(state);
+  }
 }
 
 /** Stops the alignment polling interval if it is active. */
@@ -89,14 +105,7 @@ export function tickAlignment(state) {
         faceCount,
       );
       state.ctx.alignMeshTick = (state.ctx.alignMeshTick || 0) + 1;
-      var meshEvery = Number(state.cfg.alignMeshEveryNTicks) || 1;
-      if (state.ctx.alignMeshTick % meshEvery === 0) {
-        if (isInAlignMeshIntroPeriod(state)) {
-          syncFaceMesh(state, landmarks, quality.ok);
-        } else {
-          clearFaceMesh(state);
-        }
-      }
+      syncAlignMeshDuringTick(state, landmarks, quality.ok);
 
       if (state.el.fpsScanSkipBanner) {
         var showFpsSkipBanner = !!quality.fpsLow && Dbg.isFaceScanDebugEnabled();
