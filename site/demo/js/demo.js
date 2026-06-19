@@ -214,6 +214,31 @@ function startPostScanCapture(dom, state) {
   restartFaceScanForNewRecording();
 }
 
+/** Reset wizard to baseline step when baseline/post pairing is lost. */
+function restartBaselineWizardFromPairingFailure(dom, state, controllers) {
+  void stopMusicPlayback({
+    fadeOutMs: MUSIC_FADE_MS_ON_BACK_TO_DEMOGRAPHIC,
+  }).then(() => {
+    resetMusicDemoSession();
+  });
+  state.assessment.baselineArousal = null;
+  state.assessment.baselineToken = null;
+  state.assessment.postArousal = null;
+  state.assessment.latestResult = null;
+  state.musicGate.listenedSeconds = 0;
+  state.musicGate.requirementMet = false;
+  state.musicGate.autoAdvanced = false;
+  resetUploadState(state);
+  clearRecordedPreview(dom, state);
+  state.emotionViz.postScanValenceConfirmed = false;
+  resetValencePlacementForScan(dom);
+  syncRecordAgainButton(dom, false);
+  moveFaceScanApp(dom, "pre");
+  setFaceScanConsentRequired(true);
+  restartFaceScanForNewRecording();
+  updateStep(dom, state, 0, { controllers, focus: false });
+}
+
 function bindEvents(dom, state, controllers) {
   document.addEventListener(MUSIC_PROGRESS_EVENT, (ev) => {
     const seconds = Number(ev?.detail?.currentTime) || 0;
@@ -279,6 +304,19 @@ function bindEvents(dom, state, controllers) {
       syncPostScanValenceForResults(state, controllers);
       updateStep(dom, state, 3, { controllers });
     }
+  });
+
+  document.addEventListener("maika-demo:baseline-pairing-required", (ev) => {
+    const message =
+      ev?.detail?.message ||
+      "Baseline pairing is missing. Your first scan did not complete correctly — please record your baseline scan again.";
+    if (state.currentStep === 2) {
+      restartBaselineWizardFromPairingFailure(dom, state, controllers);
+    } else if (state.currentStep === 0) {
+      restartFaceScanForNewRecording();
+    }
+    setWizardError(dom, message);
+    syncFaceStepNextGate(dom, state);
   });
 
   dom.btnRecordAgain?.addEventListener("click", () => {

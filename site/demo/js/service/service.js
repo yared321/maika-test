@@ -63,8 +63,8 @@ export function generateFaceScanRequestId() {
 }
 
 // Resolve a proxy-routed upload endpoint by path.
-// Pass one of ENDPOINT_ASSESS_BASELINE / ENDPOINT_ASSESS_POST / ENDPOINT_ASSESS,
-// or omit to get the compatibility single-step endpoint.
+// Pass ENDPOINT_ASSESS_BASELINE or ENDPOINT_ASSESS_POST for the two-step wizard flow,
+// or omit to get the legacy single-step endpoint (standalone upload paths only).
 export function resolveEndpoint(path) {
   try {
     return new URL(PROXY_BASE + (path || ENDPOINT_ASSESS), globalThis.location.href).href;

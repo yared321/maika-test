@@ -26,6 +26,9 @@ const UPLOAD_STATUS = {
   errorNoRetry: "Score calculation failed. Please record again.",
 };
 
+const BASELINE_PAIRING_ERROR =
+  "Baseline pairing is missing. Your first scan did not complete correctly — please record your baseline scan again.";
+
 // User-facing messages for specific API error codes (spec §5).
 const ERROR_CODE_MESSAGES = {
   LOW_LIGHT:        "Lighting was too low during the scan. Move to a brighter area and record again.",
@@ -49,6 +52,15 @@ function errorMessageForResult(result) {
   if (result.timedOut) return "Upload timed out. Please try again.";
   if (result.netError) return "Network error. Check your connection and try again.";
   return `Upload failed (HTTP ${result.status || 0}).`;
+}
+
+/** Notify wizard that baseline/post pairing failed and baseline must be redone. */
+function notifyBaselinePairingRequired(message) {
+  document.dispatchEvent(
+    new CustomEvent("maika-demo:baseline-pairing-required", {
+      detail: { message: message || BASELINE_PAIRING_ERROR },
+    }),
+  );
 }
 
 /**
@@ -231,16 +243,27 @@ export async function startFaceUpload(dom, state, setWizardError) {
   const scanPhase =
     state.currentStep === 0 ? "baseline" : state.currentStep === 2 ? "post" : null;
 
-  // Two-step flow: baseline → -baseline endpoint; post → -post endpoint (with token)
-  // if no token is available yet, fall back to the single-step /assess endpoint.
-  const baselineToken = scanPhase === "post"
-    ? (state.assessment.baselineToken || "")
-    : "";
-  const endpointPath = scanPhase === "baseline"
-    ? ASSESS_PATHS.baseline
-    : scanPhase === "post" && baselineToken
-      ? ASSESS_PATHS.post
-      : ASSESS_PATHS.single;
+  const baselineToken =
+    scanPhase === "post" ? String(state.assessment.baselineToken || "").trim() : "";
+
+  if (scanPhase === "post" && !baselineToken) {
+    failFaceUpload(
+      dom,
+      state,
+      setWizardError,
+      UPLOAD_STATUS.errorNoRetry,
+      BASELINE_PAIRING_ERROR,
+    );
+    notifyBaselinePairingRequired(BASELINE_PAIRING_ERROR);
+    return;
+  }
+
+  const endpointPath =
+    scanPhase === "baseline"
+      ? ASSESS_PATHS.baseline
+      : scanPhase === "post"
+        ? ASSESS_PATHS.post
+        : ASSESS_PATHS.single;
 
   const endpoint = resolveEndpoint(endpointPath);
   if (!endpoint) {
@@ -272,21 +295,35 @@ export async function startFaceUpload(dom, state, setWizardError) {
     });
 
     if (uploadResult.ok) {
-      state.upload.completed = true;
-      setUploadUiState(dom, state, "success", UPLOAD_STATUS.success);
-      syncRecordAgainButton(dom, false);
       if (uploadResult.data && typeof uploadResult.data === "object") {
         state.assessment.latestResult = uploadResult.data;
         const arousal = extractArousalFromResult(uploadResult.data);
         if (scanPhase === "baseline") {
           state.assessment.baselineArousal = arousal;
-          // Store baseline_token in memory for the post upload
           const token = uploadResult.data.baseline_token;
-          state.assessment.baselineToken = typeof token === "string" && token ? token : null;
+          state.assessment.baselineToken =
+            typeof token === "string" && token ? token : null;
+          if (!state.assessment.baselineToken) {
+            const message =
+              "Baseline scan uploaded but pairing token was missing. Please record your baseline scan again.";
+            failFaceUpload(dom, state, setWizardError, UPLOAD_STATUS.errorNoRetry, message);
+            notifyBaselinePairingRequired(message);
+            return;
+          }
         } else if (scanPhase === "post") {
           state.assessment.postArousal = arousal;
         }
+      } else if (scanPhase === "baseline") {
+        const message =
+          "Baseline scan uploaded but pairing token was missing. Please record your baseline scan again.";
+        failFaceUpload(dom, state, setWizardError, UPLOAD_STATUS.errorNoRetry, message);
+        notifyBaselinePairingRequired(message);
+        return;
       }
+
+      state.upload.completed = true;
+      setUploadUiState(dom, state, "success", UPLOAD_STATUS.success);
+      syncRecordAgainButton(dom, false);
       state.upload.pendingBlob = null;
       state.upload.pendingMime = "";
       setWizardError(dom, "");
