@@ -12,7 +12,7 @@ import { stopMusicPlayback } from "../music_stream_controller.js";
 
 /** Fade out background music when face recording finishes (blob ready), not when starting the camera. */
 var MUSIC_FADE_MS_AFTER_RECORDING_COMPLETE = 5000;
-/** Camera warmup duration (client spec: "2-3 seconds") before alignment gating starts. */
+/** Camera warmup before alignment (client spec: ~2–3s). */
 var WARMUP_DURATION_MS = 2500;
 var RECORD_TARGET_MS = 30000;
 var RECORD_MAX_WALL_CLOCK_MS = 45000;
@@ -23,6 +23,8 @@ var RECORD_FRAMING_INTERVAL_MS_PHONE = 350;
 var PHONE_RECORD_LUMINANCE_CHECKS_ENABLED = false;
 /** Trial toggle: face-mesh overlay during phone record (needs Landmarker, not BlazeFace). */
 var PHONE_RECORD_MESH_ENABLED = false;
+/** Phone-only: show animated mesh for this long at the start of pre-scan (align). */
+var PHONE_MESH_INTRO_MS = 2000;
 var STABLE_HIT_COUNT = 4;
 var MIN_ALIGN_MS = 5000;
 var FACE_MIN_FRAC = 0.40;
@@ -55,8 +57,6 @@ var RECORD_VIDEO_BPS_MP4_MOBILE = 1200000;
 var RECORD_VIDEO_BPS_WEBM_MOBILE = 1000000;
 var DEFAULT_QUALITY_RESTART_MESSAGE =
   "We paused because the signal was unstable. Adjust your setup, then restart when ready.";
-/** After this many quality-triggered retries, offer the user a "Skip scan" escape hatch. */
-var SKIP_SCAN_OFFER_AFTER_RETRIES = 3;
 
 function readMetaContent(name) {
   var el = document.querySelector('meta[name="' + name + '"]');
@@ -104,12 +104,16 @@ function getDevicePerfConfig() {
   var recordFramingMs = isPhone ? RECORD_FRAMING_INTERVAL_MS_PHONE : ALIGN_INTERVAL_MS;
   return {
     isPhone: isPhone,
+    warmupDurationMs: WARMUP_DURATION_MS,
     recordFramingIntervalMs: recordFramingMs,
     majorAbortStreak: isPhone
       ? Math.max(1, Math.round((100 * ALIGN_INTERVAL_MS) / recordFramingMs))
       : 100,
     useDetectorDuringRecord: isPhone && !PHONE_RECORD_MESH_ENABLED,
     skipMeshDuringRecord: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    useDetectorDuringAlign: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    skipMeshDuringAlign: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    phoneMeshIntroMs: isPhone && !PHONE_RECORD_MESH_ENABLED ? PHONE_MESH_INTRO_MS : 0,
     skipRecordLuminanceChecks: isPhone && !PHONE_RECORD_LUMINANCE_CHECKS_ENABLED,
     deferRecordDetectorLoad: isPhone,
     alignMeshEveryNTicks: isPhone ? 2 : 1,
@@ -225,7 +229,6 @@ function getDomReferences() {
     btnCameraBack: H.byId("btn-camera-back"),
     fpsScanSkipBanner: H.byId("fps-skip-banner"),
     btnFpsSkip: H.byId("btn-fps-skip"),
-    btnSkipScan: H.byId("btn-skip-scan"),
   };
 }
 
@@ -488,9 +491,6 @@ function openScanPanelAndRequestCamera(camera) {
   if (cameraDOM.btnRestartCamera) {
     cameraDOM.btnRestartCamera.classList.add("hidden");
   }
-  if (cameraDOM.btnSkipScan) {
-    cameraDOM.btnSkipScan.classList.add("hidden");
-  }
   if (cameraDOM.btnStart) cameraDOM.btnStart.disabled = true;
   cameraDOM.panelInstructions.classList.add("hidden");
   cameraDOM.panelScan.classList.remove("hidden");
@@ -676,7 +676,6 @@ function resetUiToStart(camera, recording) {
   if (camera) camera.cancelCountdown();
   context.skipFpsGate = false;
   if (cameraDOM.fpsScanSkipBanner) cameraDOM.fpsScanSkipBanner.classList.add("hidden");
-  if (cameraDOM.btnSkipScan) cameraDOM.btnSkipScan.classList.add("hidden");
   cameraDOM.panelInstructions.classList.remove("hidden");
   cameraDOM.panelScan.classList.add("hidden");
   cameraDOM.panelResult.classList.add("hidden");
@@ -780,10 +779,6 @@ function createRecordingController(getCamera, onResetUi) {
         if (cameraDOM.btnRestartCamera) {
           cameraDOM.btnRestartCamera.classList.remove("hidden");
         }
-        if (cameraDOM.btnSkipScan) {
-          var offerSkip = context.retryCount >= SKIP_SCAN_OFFER_AFTER_RETRIES;
-          cameraDOM.btnSkipScan.classList.toggle("hidden", !offerSkip);
-        }
         if (cameraDOM.mimeHint) {
           cameraDOM.mimeHint.textContent =
             "Tap Restart camera below when you are ready for another measurement.";
@@ -835,13 +830,16 @@ function createCameraController(recording) {
       fpsScanSkipBanner: cameraDOM.fpsScanSkipBanner,
     },
     config: {
-      warmupDurationMs: WARMUP_DURATION_MS,
+      warmupDurationMs: perf.warmupDurationMs,
       alignIntervalMs: ALIGN_INTERVAL_MS,
       isPhone: perf.isPhone,
       recordFramingIntervalMs: perf.recordFramingIntervalMs,
       majorAbortStreak: perf.majorAbortStreak,
       useDetectorDuringRecord: perf.useDetectorDuringRecord,
       skipMeshDuringRecord: perf.skipMeshDuringRecord,
+      useDetectorDuringAlign: perf.useDetectorDuringAlign,
+      skipMeshDuringAlign: perf.skipMeshDuringAlign,
+      phoneMeshIntroMs: perf.phoneMeshIntroMs,
       skipRecordLuminanceChecks: perf.skipRecordLuminanceChecks,
       deferRecordDetectorLoad: perf.deferRecordDetectorLoad,
       alignMeshEveryNTicks: perf.alignMeshEveryNTicks,
@@ -956,15 +954,6 @@ function bindFaceScanEvents(camera, recording) {
       if (cameraDOM.fpsScanSkipBanner) {
         cameraDOM.fpsScanSkipBanner.classList.add("hidden");
       }
-    });
-  }
-
-  if (cameraDOM.btnSkipScan) {
-    cameraDOM.btnSkipScan.addEventListener("click", function () {
-      resetUiToStart(camera, recording);
-      document.dispatchEvent(new CustomEvent("maika-demo:face-scan-skipped", {
-        detail: { retryCount: context.retryCount },
-      }));
     });
   }
 }

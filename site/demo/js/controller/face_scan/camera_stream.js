@@ -132,6 +132,9 @@ export function requestCameraAndStartAlignment(state) {
     record_framing_interval_ms: Number(state.cfg.recordFramingIntervalMs) || null,
     skip_record_luminance_checks: !!state.cfg.skipRecordLuminanceChecks,
     skip_mesh_during_record: !!state.cfg.skipMeshDuringRecord,
+    skip_mesh_during_align: !!state.cfg.skipMeshDuringAlign,
+    use_detector_during_align: !!state.cfg.useDetectorDuringAlign,
+    phone_mesh_intro_ms: Number(state.cfg.phoneMeshIntroMs) || null,
     defer_record_detector_load: !!state.cfg.deferRecordDetectorLoad,
     // device info
     browser: _deviceInfo.browser,

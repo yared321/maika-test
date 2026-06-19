@@ -13,6 +13,27 @@ import {
 } from "./detection_utils.js";
 import { syncFaceScanFx, syncFaceMesh, clearFaceMesh } from "./camera_fx.js";
 
+/** True during the first phoneMeshIntroMs of pre-scan — Landmarker + mesh run here only. */
+function isInAlignMeshIntroPeriod(state) {
+  var introMs = Number(state.cfg.phoneMeshIntroMs) || 0;
+  if (introMs <= 0) return false;
+  if (!state.ctx || state.ctx.phase !== "align") return false;
+  var started = state.ctx.alignStartedAt;
+  if (!Number.isFinite(started)) return false;
+  return performance.now() - started < introMs;
+}
+
+/** Landmarker during mesh intro; BlazeFace (record path) after intro on phone. */
+function detectFaceForAlignPhase(state) {
+  if (isInAlignMeshIntroPeriod(state)) {
+    return H.detectSingleFace(state.el.preview);
+  }
+  if (state.cfg.useDetectorDuringAlign) {
+    return H.detectSingleFaceForRecord(state.el.preview);
+  }
+  return H.detectSingleFace(state.el.preview);
+}
+
 /** Stops the alignment polling interval if it is active. */
 export function stopAlignLoop(state) {
   if (state.ctx.alignTimer != null) {
@@ -51,7 +72,7 @@ export function tickAlignment(state) {
     state.el.preview.readyState >= 2 ? H.getCoverVisibleRegion(state.el.preview) : null;
   if (!reg || reg.vw < 160) return;
 
-  H.detectSingleFace(state.el.preview)
+  detectFaceForAlignPhase(state)
     .then(function (detection) {
       if (state.ctx.phase !== "align") return;
       var box = extractBoxFromDetection(detection);
@@ -70,7 +91,11 @@ export function tickAlignment(state) {
       state.ctx.alignMeshTick = (state.ctx.alignMeshTick || 0) + 1;
       var meshEvery = Number(state.cfg.alignMeshEveryNTicks) || 1;
       if (state.ctx.alignMeshTick % meshEvery === 0) {
-        syncFaceMesh(state, landmarks, quality.ok);
+        if (isInAlignMeshIntroPeriod(state)) {
+          syncFaceMesh(state, landmarks, quality.ok);
+        } else {
+          clearFaceMesh(state);
+        }
       }
 
       if (state.el.fpsScanSkipBanner) {
