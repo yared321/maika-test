@@ -2,7 +2,13 @@
  * Reusable helpers for the face scan UI.
  */
 
-import { getDetectorOptions as getFaceDetectorOptions } from "./face_scan_face_model.js";
+import {
+  getDetectorOptions as getFaceDetectorOptions,
+  isDetectionEnabled as isFaceDetectionEnabled,
+  detectSingleFace as detectSingleFaceFromModel,
+  detectSingleFaceForRecord as detectSingleFaceForRecordFromModel,
+  ensureRecordDetectorLoaded as ensureRecordDetectorLoadedFromModel,
+} from "./face_model.js";
 
 /**
  * `document.getElementById` shorthand.
@@ -14,11 +20,42 @@ export function byId(id) {
 }
 
 /**
- * Detector options for `faceapi.detectSingleFace`.
+ * Detector options for the active face detection provider.
  * @returns {object | null}
  */
 export function getDetectorOptions() {
   return getFaceDetectorOptions();
+}
+
+/**
+ * Returns true when face detection is active (not `off` / `none`).
+ * @returns {boolean}
+ */
+export function isDetectorEnabled() {
+  return isFaceDetectionEnabled();
+}
+
+/**
+ * Unified single-face detection call routed by configured provider.
+ * @param {HTMLVideoElement|HTMLCanvasElement} source
+ * @param {{ mode?: "landmarker" | "detector" }} [options]
+ * @returns {Promise<{ box: { x: number, y: number, width: number, height: number } } | null>}
+ */
+export function detectSingleFace(source, options) {
+  return detectSingleFaceFromModel(source, options);
+}
+
+/**
+ * Box-only BlazeFace detection for the recording phase (lighter than landmarker).
+ * @param {HTMLVideoElement|HTMLCanvasElement} source
+ */
+export function detectSingleFaceForRecord(source) {
+  return detectSingleFaceForRecordFromModel(source);
+}
+
+/** Prefetch BlazeFace on phone during countdown (landmarker-only initial load). */
+export function ensureRecordDetectorLoaded() {
+  return ensureRecordDetectorLoadedFromModel();
 }
 
 /** Picks a MediaRecorder MIME type browsers on this machine are likely to support. */
@@ -124,8 +161,8 @@ export function isFaceWellFramed(box, video, faceMinFrac, faceMaxFrac) {
   var cyView = box.y + box.height / 2;
   var cx0 = reg.sx + reg.sw / 2;
   var cy0 = reg.sy + reg.sh / 2;
-  if (Math.abs(cxView - cx0) > reg.sw * 0.38) return false;
-  if (Math.abs(cyView - cy0) > reg.sh * 0.42) return false;
+  if (Math.abs(cxView - cx0) > reg.sw * 0.28) return false;
+  if (Math.abs(cyView - cy0) > reg.sh * 0.30) return false;
   if (box.width < reg.sw * faceMinFrac || box.width > reg.sw * faceMaxFrac)
     return false;
 
@@ -184,17 +221,25 @@ export function getFaceFramingGuidance(box, video, faceMinFrac, faceMaxFrac) {
 
 /** Minimum mean luma (0–255) over the face ROI before align/recording may proceed. Tune per backend sensitivity. */
 export const DEFAULT_FACE_MIN_MEAN_LUMINANCE = 46;
+export const DEFAULT_FACE_MAX_MEAN_LUMINANCE = 210;
 
 var _luminanceCanvas = null;
 
 /**
- * Mean perceptual luminance (BT.601) over the face bounding region in video pixels.
+ * Sample face-region photometric metrics from the face ROI.
  * Downsamples for speed; returns null if sampling fails.
  * @param {HTMLVideoElement} video
  * @param {{ x: number, y: number, width: number, height: number }} box
- * @returns {number | null}
+ * @returns {{
+ *   meanLuminance: number,
+ *   meanGreen: number,
+ *   overexposedRatio: number,
+ *   underexposedRatio: number,
+ *   leftMeanLuminance: number,
+ *   rightMeanLuminance: number
+ * } | null}
  */
-export function estimateFaceRegionMeanLuminance(video, box) {
+export function sampleFaceRegionMetrics(video, box) {
   if (!video || !box || !video.videoWidth || video.readyState < 2) return null;
   var vw = video.videoWidth;
   var vh = video.videoHeight;
@@ -225,16 +270,55 @@ export function estimateFaceRegionMeanLuminance(video, box) {
   }
   var imageData = ctx.getImageData(0, 0, tw, th);
   var data = imageData.data;
-  var sum = 0;
+  var sumLuma = 0;
+  var sumGreen = 0;
+  var sumLeft = 0;
+  var sumRight = 0;
+  var nLeft = 0;
+  var nRight = 0;
+  var overexposed = 0;
+  var underexposed = 0;
   var n = 0;
+  var splitX = tw * 0.5;
   for (var i = 0; i < data.length; i += 4) {
     var r = data[i];
     var g = data[i + 1];
     var b = data[i + 2];
-    sum += 0.299 * r + 0.587 * g + 0.114 * b;
+    var luma = 0.299 * r + 0.587 * g + 0.114 * b;
+    sumLuma += luma;
+    sumGreen += g;
+    var px = (i / 4) % tw;
+    if (px < splitX) {
+      sumLeft += luma;
+      nLeft++;
+    } else {
+      sumRight += luma;
+      nRight++;
+    }
+    if (luma >= 235) overexposed++;
+    if (luma <= 25) underexposed++;
     n++;
   }
-  return n > 0 ? sum / n : null;
+  if (!n) return null;
+  return {
+    meanLuminance: sumLuma / n,
+    meanGreen: sumGreen / n,
+    overexposedRatio: overexposed / n,
+    underexposedRatio: underexposed / n,
+    leftMeanLuminance: nLeft ? sumLeft / nLeft : sumLuma / n,
+    rightMeanLuminance: nRight ? sumRight / nRight : sumLuma / n,
+  };
+}
+
+/**
+ * Mean perceptual luminance (BT.601) over the face bounding region.
+ * @param {HTMLVideoElement} video
+ * @param {{ x: number, y: number, width: number, height: number }} box
+ * @returns {number | null}
+ */
+export function estimateFaceRegionMeanLuminance(video, box) {
+  var m = sampleFaceRegionMetrics(video, box);
+  return m ? m.meanLuminance : null;
 }
 
 /**
@@ -250,8 +334,6 @@ export function isFaceRegionBrightEnough(video, box, minMean) {
       : DEFAULT_FACE_MIN_MEAN_LUMINANCE;
   var L = estimateFaceRegionMeanLuminance(video, box);
   if (L == null || !Number.isFinite(L)) return false;
-  console.log('L', L);
-  console.log('min', min);
   return L >= min;
 }
 
@@ -274,24 +356,6 @@ export function computeFaceScanEllipse(box, video) {
     rxPct: rxPct,
     ryPct: ryPct,
   };
-}
-
-/** Pauses MediaRecorder if supported when user leaves framing. */
-export function safeRecorderPause(rec) {
-  if (!rec || typeof rec.pause !== "function") return;
-  if (rec.state === "recording")
-    try {
-      rec.pause();
-    } catch (e0) {}
-}
-
-/** Resumes MediaRecorder after being paused (face back in frame). */
-export function safeRecorderResume(rec) {
-  if (!rec || typeof rec.resume !== "function") return;
-  if (rec.state === "paused")
-    try {
-      rec.resume();
-    } catch (e1) {}
 }
 
 /** Updates placement pill text and state-* class on the element. */
@@ -335,6 +399,9 @@ export function createRecorder(mediaStream, mimeHint, bpsMp4, bpsWebm) {
 export const FaceScanHelpers = {
   byId,
   getDetectorOptions,
+  isDetectorEnabled,
+  detectSingleFace,
+  detectSingleFaceForRecord,
   pickMimeType,
   formatTime,
   friendlyCameraMessage,
@@ -342,11 +409,11 @@ export const FaceScanHelpers = {
   isFaceWellFramed,
   getFaceFramingGuidance,
   computeFaceScanEllipse,
-  safeRecorderPause,
-  safeRecorderResume,
   setPlacementUi,
   createRecorder,
   DEFAULT_FACE_MIN_MEAN_LUMINANCE,
+  DEFAULT_FACE_MAX_MEAN_LUMINANCE,
+  sampleFaceRegionMetrics,
   estimateFaceRegionMeanLuminance,
   isFaceRegionBrightEnough,
 };

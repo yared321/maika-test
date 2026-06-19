@@ -2,41 +2,171 @@
  * Face scan runtime flow:
  * start camera -> align -> countdown -> record -> emit blob-ready event.
  */
-import * as H from "../utils/face_scan_helpers.js";
-import { FaceScanFaceModel } from "../utils/face_scan_face_model.js";
-import { FaceScanCameraController } from "./face_scan_camera_controller.js";
-import { FaceScanRecordingController } from "./face_scan_recording_controller.js";
-import { FaceScanUpload } from "../service/service.js";
-import { stopMusicPlayback } from "./music_stream_controller.js";
+import * as H from "../../utils/face_scan/helpers.js";
+import * as Dbg from "../../utils/face_scan/debug.js";
+import { FaceScanFaceModel } from "../../utils/face_scan/face_model.js";
+import { FaceScanCameraController } from "./camera_controller.js";
+import { FaceScanRecordingController } from "./recording_controller.js";
+import { FaceScanUpload } from "../../service/service.js";
+import { stopMusicPlayback } from "../music_stream_controller.js";
 
 /** Fade out background music when face recording finishes (blob ready), not when starting the camera. */
 var MUSIC_FADE_MS_AFTER_RECORDING_COMPLETE = 5000;
-
-var RECORD_TARGET_MS = 15000;
+/** Camera warmup before alignment (client spec: ~2–3s). */
+var WARMUP_DURATION_MS = 2500;
+var RECORD_TARGET_MS = 30000;
+var RECORD_MAX_WALL_CLOCK_MS = 45000;
 var ALIGN_INTERVAL_MS = 120;
+/** Phone-only: slower record quality-sample cadence (desktop matches align at 120ms). */
+var RECORD_FRAMING_INTERVAL_MS_PHONE = 350;
+/** Trial toggle: record-phase checks 6–9 on phone (BlazeFace + 350ms still on). */
+var PHONE_RECORD_LUMINANCE_CHECKS_ENABLED = false;
+/** Trial toggle: face-mesh overlay during phone record (needs Landmarker, not BlazeFace). */
+var PHONE_RECORD_MESH_ENABLED = false;
+/** Phone-only: show animated mesh for this long at the start of pre-scan (align). Desktop keeps full mesh for entire align (phoneMeshIntroMs = 0). */
+var PHONE_MESH_INTRO_MS = 2000;
 var STABLE_HIT_COUNT = 4;
-var FACE_MIN_FRAC = 0.12;
-var FACE_MAX_FRAC = 0.86;
+var MIN_ALIGN_MS = 5000;
+var FACE_MIN_FRAC = 0.40;
+var FACE_MAX_FRAC = 0.72;
+var FACE_PREFERRED_MIN_FRAC = 0.55;
+var FACE_PREFERRED_MAX_FRAC = 0.65;
+var FACE_MAX_MEAN_LUMINANCE = 210;
+var FACE_MAX_OVEREXPOSED_RATIO = 0.1;
+var FACE_MAX_UNDEREXPOSED_RATIO = 0.22;
+var FACE_MAX_SIDE_LUMA_ASYMMETRY = 0.32;
+var FACE_MAX_BRIGHTNESS_STD = 15;
+var FACE_MAX_HEAD_MOTION_FRAC_PER_SAMPLE = 0.028;
+var FACE_MIN_STABLE_FPS = 15;
+/** Retuned for rVFC-backed ~30fps intervals (was 0.45 for 120ms poll cadence). */
+var FACE_MAX_FRAME_DT_STD_RATIO = 0.85;
+var FACE_POSE_RATIO_MIN = 0.65;
+var FACE_POSE_RATIO_MAX = 1.35;
+var FACE_MAX_LANDMARK_ROLL_RATIO = 0.18;
+var FACE_MAX_LANDMARK_YAW_RATIO = 0.35;
+var FACE_VISIBLE_MARGIN_FRAC_X = 0.03;
+var FACE_VISIBLE_MARGIN_FRAC_Y = 0.04;
+var FACE_QUALITY_HISTORY_LEN = 24;
+var FACE_PRELIMINARY_RPPG_ENABLED = false;
+var FACE_PRELIMINARY_RPPG_MIN_GREEN_STD = 0.8;
+var FACE_PRELIMINARY_RPPG_MAX_GREEN_STD = 30;
 var RECORD_VIDEO_BPS_MP4 = 2200000;
 var RECORD_VIDEO_BPS_WEBM = 1800000;
+/** Lower encode load on phones (desktop keeps 2.2 Mbps MP4). */
+var RECORD_VIDEO_BPS_MP4_MOBILE = 1200000;
+var RECORD_VIDEO_BPS_WEBM_MOBILE = 1000000;
+var DEFAULT_QUALITY_RESTART_MESSAGE =
+  "We paused because the signal was unstable. Adjust your setup, then restart when ready.";
 
-var MODEL_URL_CDN =
-  "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
-var MODEL_URL_LOCAL = "models";
+function readMetaContent(name) {
+  var el = document.querySelector('meta[name="' + name + '"]');
+  if (!el) return "";
+  return String(el.getAttribute("content") || "").trim();
+}
+
+function readMetaNumber(name) {
+  var raw = readMetaContent(name);
+  if (!raw) return null;
+  var value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function isLikelyPhoneRecordingDevice() {
+  if (
+    typeof navigator !== "undefined" &&
+    navigator.userAgentData &&
+    navigator.userAgentData.mobile
+  ) {
+    return true;
+  }
+  if (typeof window !== "undefined" && window.matchMedia) {
+    return (
+      window.matchMedia("(pointer: coarse)").matches &&
+      window.matchMedia("(hover: none)").matches
+    );
+  }
+  return false;
+}
+
+function getRecordVideoBitrates() {
+  if (isLikelyPhoneRecordingDevice()) {
+    return {
+      mp4: RECORD_VIDEO_BPS_MP4_MOBILE,
+      webm: RECORD_VIDEO_BPS_WEBM_MOBILE,
+    };
+  }
+  return { mp4: RECORD_VIDEO_BPS_MP4, webm: RECORD_VIDEO_BPS_WEBM };
+}
+
+/** Phone-only recording/align perf tuning; desktop keeps full-quality paths. */
+function getDevicePerfConfig() {
+  var isPhone = isLikelyPhoneRecordingDevice();
+  var recordFramingMs = isPhone ? RECORD_FRAMING_INTERVAL_MS_PHONE : ALIGN_INTERVAL_MS;
+  return {
+    isPhone: isPhone,
+    warmupDurationMs: WARMUP_DURATION_MS,
+    recordFramingIntervalMs: recordFramingMs,
+    majorAbortStreak: isPhone
+      ? Math.max(1, Math.round((100 * ALIGN_INTERVAL_MS) / recordFramingMs))
+      : 100,
+    useDetectorDuringRecord: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    skipMeshDuringRecord: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    useDetectorDuringAlign: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    skipMeshDuringAlign: isPhone && !PHONE_RECORD_MESH_ENABLED,
+    phoneMeshIntroMs: isPhone && !PHONE_RECORD_MESH_ENABLED ? PHONE_MESH_INTRO_MS : 0,
+    skipRecordLuminanceChecks: isPhone && !PHONE_RECORD_LUMINANCE_CHECKS_ENABLED,
+    deferRecordDetectorLoad: isPhone,
+    alignMeshEveryNTicks: isPhone ? 2 : 1,
+    /** Desktop: geometry metadata every 4th tick (~480ms) to spare main thread. */
+    recordCollectorEveryNTicks: isPhone ? 1 : 4,
+  };
+}
+
+function getFaceDetectorRuntimeConfig() {
+  var mediapipeMinConf = readMetaNumber(
+    "maika-mediapipe-min-detection-confidence",
+  );
+  return {
+    provider: "mediapipe",
+    mediapipe: {
+      modelType: readMetaContent("maika-mediapipe-model-type") || "landmarker",
+      jsCdn: readMetaContent("maika-mediapipe-js-cdn"),
+      wasmRoot: readMetaContent("maika-mediapipe-wasm-root"),
+      modelAssetPath: readMetaContent("maika-mediapipe-model-url"),
+      delegate: readMetaContent("maika-mediapipe-delegate"),
+      minDetectionConfidence: mediapipeMinConf,
+    },
+  };
+}
 
 var context = {
   phase: "idle",
   stream: null,
   recorder: null,
+  cameraMetadata: null,
+  warmupTimer: null,
+  warmupTimeout: null,
+  warmupSummary: null,
+  fpsMonitorActive: false,
+  fpsMonitorHandle: null,
+  fpsMonitorUsesNative: false,
+  fpsMonitorRecordingSamples: null,
   alignTimer: null,
   recordFramingTimer: null,
   countdownTimer: 0,
   placementStableHits: 0,
   recordBudgetAccumMs: 0,
   recordBudgetLastSample: null,
+  recordWallClockStartedAt: null,
+  qualityTimeline: [],
+  discardCurrentRecording: false,
+  autoRestartCameraAfterAbort: false,
+  qualityRestartMessage: "",
   recordingFaceInGuide: false,
   recordingFramingReady: false,
   detectionInFlight: false,
+  attemptCount: 0,
+  retryCount: 0,
 };
 
 var faceModelsReady = false;
@@ -63,6 +193,11 @@ function getDomReferences() {
     scanIntro: H.byId("scan-intro"),
     panelResult: H.byId("panel-result"),
     preview: H.byId("preview"),
+    faceMeshCanvas: H.byId("face-scan-mesh"),
+    videoWrap: H.byId("video-wrap"),
+    scanRecovery: H.byId("scan-recovery"),
+    scanRecoveryMessage: H.byId("scan-recovery-message"),
+    scanActions: H.byId("scan-actions"),
     placementStatus: H.byId("placement-status"),
     scanHudStars: H.byId("scan-hud-stars"),
     scanHudText: H.byId("scan-hud-text"),
@@ -70,6 +205,7 @@ function getDomReferences() {
     scanRingArc: H.byId("scan-ring-arc"),
     modelsStatus: H.byId("models-status"),
     btnStart: H.byId("btn-start"),
+    btnRestartCamera: H.byId("btn-restart-camera"),
     btnCancel: H.byId("btn-cancel"),
     overlayCountdown: H.byId("overlay-countdown"),
     countdownNumber: H.byId("countdown-number"),
@@ -91,6 +227,8 @@ function getDomReferences() {
     scanOverlayDeniedText: H.byId("scan-overlay-denied-text"),
     btnCameraRetry: H.byId("btn-camera-retry"),
     btnCameraBack: H.byId("btn-camera-back"),
+    fpsScanSkipBanner: H.byId("fps-skip-banner"),
+    btnFpsSkip: H.byId("btn-fps-skip"),
   };
 }
 
@@ -239,36 +377,6 @@ function setScanOverlayStage(stage) {
 }
 
 /**
- * Run a lightweight warmup detection pass so the face detector responds faster later.
- * @returns {Promise<void>}
- */
-function warmupDetector() {
-  if (typeof globalThis.faceapi === "undefined") return Promise.resolve();
-  var opts = FaceScanFaceModel.getDetectorOptions();
-  if (!opts) return Promise.resolve();
-  var warmupCanvas = document.createElement("canvas");
-  warmupCanvas.width = 160;
-  warmupCanvas.height = 120;
-  return globalThis.faceapi
-    .detectSingleFace(warmupCanvas, opts)
-    .then(function () {})
-    .catch(function () {});
-}
-
-/**
- * Phones / touch layouts use the lighter TinyFaceDetector; desktop uses SSD when available.
- * @returns {boolean}
- */
-function preferTinyFaceDetector() {
-  var coarse =
-    typeof globalThis.matchMedia === "function" &&
-    globalThis.matchMedia("(pointer: coarse)").matches;
-  var narrow =
-    typeof globalThis.innerWidth === "number" && globalThis.innerWidth < 768;
-  return coarse || narrow;
-}
-
-/**
  * Display a visible error message inside the scan flow UI.
  * @param {string} text
  */
@@ -295,42 +403,35 @@ function bootstrapModels() {
   faceModelsLoadFailed = false;
   syncStartButtonAvailability();
 
-  FaceScanFaceModel.setConfig({
-    kind: preferTinyFaceDetector() ? "tiny" : "ssd",
-    weightsCdn: MODEL_URL_CDN,
-    weightsLocal: MODEL_URL_LOCAL,
-    ssd: { minConfidence: 0.35 },
-    tiny: { inputSize: 224, scoreThreshold: 0.35 },
+  var runtimeConfig = getFaceDetectorRuntimeConfig();
+  Dbg.logFaceScanStep("bootstrap: detector config", {
+    provider: runtimeConfig.provider,
+    kind: runtimeConfig.kind,
+    mediapipe: runtimeConfig.mediapipe,
+    preliminaryRppgEnabled: FACE_PRELIMINARY_RPPG_ENABLED,
+    qualityThresholds: {
+      faceMinFrac: FACE_MIN_FRAC,
+      faceMaxFrac: FACE_MAX_FRAC,
+      facePreferredMinFrac: FACE_PREFERRED_MIN_FRAC,
+      facePreferredMaxFrac: FACE_PREFERRED_MAX_FRAC,
+      minLuminance: H.DEFAULT_FACE_MIN_MEAN_LUMINANCE,
+      maxLuminance: FACE_MAX_MEAN_LUMINANCE,
+      preliminaryRppgMinGreenStd: FACE_PRELIMINARY_RPPG_MIN_GREEN_STD,
+      preliminaryRppgMaxGreenStd: FACE_PRELIMINARY_RPPG_MAX_GREEN_STD,
+    },
   });
-
-  var kind = String(FaceScanFaceModel.getConfig().kind || "tiny").toLowerCase();
-  if (kind === "none" || kind === "off") {
-    cameraDOM.modelsStatus.textContent =
-      "Face detector off — camera runs without alignment or face-based pause.";
-    cameraDOM.modelsStatus.classList.remove("hint", "failed");
-    cameraDOM.modelsStatus.classList.add("hint", "ready");
-    faceModelsReady = true;
-    faceModelsLoadFailed = false;
-    setScanOverlayStage("model");
-    syncStartButtonAvailability();
-    modelsLoadPromise = Promise.resolve();
-    return modelsLoadPromise;
-  }
-
-  if (typeof faceapi === "undefined") {
-    cameraDOM.modelsStatus.textContent =
-      "face-api library failed (network / blocked script).";
-    cameraDOM.modelsStatus.classList.add("failed");
-    faceModelsLoadFailed = true;
-    syncStartButtonAvailability();
-    modelsLoadPromise = Promise.reject(new Error("faceapi_undefined"));
-    return modelsLoadPromise;
-  }
+  FaceScanFaceModel.setConfig({
+    provider: "mediapipe",
+    mediapipe: runtimeConfig.mediapipe,
+    deferRecordDetectorLoad: getDevicePerfConfig().deferRecordDetectorLoad,
+  });
 
   modelsLoadPromise = FaceScanFaceModel.load()
     .then(function () {
-      return warmupDetector().then(function () {
-        cameraDOM.modelsStatus.textContent = "Face detector ready.";
+      return FaceScanFaceModel.warmup().then(function () {
+        Dbg.logFaceScanStep("bootstrap: models ready", FaceScanFaceModel.getConfig());
+        cameraDOM.modelsStatus.textContent =
+          FaceScanFaceModel.getProviderLabel() + " ready.";
         cameraDOM.modelsStatus.classList.remove("hint", "failed");
         cameraDOM.modelsStatus.classList.add("hint", "ready");
         faceModelsReady = true;
@@ -339,9 +440,14 @@ function bootstrapModels() {
         syncStartButtonAvailability();
       });
     })
-    .catch(function () {
+    .catch(function (err) {
+      Dbg.warnFaceScanStep("bootstrap: model load failed", {
+        provider: runtimeConfig.provider,
+        error: err && err.message ? err.message : String(err),
+      });
       cameraDOM.modelsStatus.textContent =
-        "Detector models unavailable (CDN + ./models fallback).";
+        FaceScanFaceModel.getProviderLabel() +
+        " failed to load. Check network settings and detector configuration.";
       cameraDOM.modelsStatus.classList.add("failed");
       faceModelsLoadFailed = true;
       faceModelsReady = false;
@@ -351,10 +457,40 @@ function bootstrapModels() {
 }
 
 /**
+ * Shows or hides the in-frame recovery card and stacked action buttons.
+ * @param {boolean} visible
+ * @param {string} [message]
+ */
+function setScanRecoveryUi(visible, message) {
+  if (cameraDOM.videoWrap) {
+    cameraDOM.videoWrap.classList.toggle("is-recovery", !!visible);
+  }
+  if (cameraDOM.scanRecovery) {
+    cameraDOM.scanRecovery.classList.toggle("hidden", !visible);
+  }
+  if (cameraDOM.scanActions) {
+    cameraDOM.scanActions.classList.toggle("scan-actions--recovery", !!visible);
+  }
+  if (visible && cameraDOM.scanRecoveryMessage) {
+    cameraDOM.scanRecoveryMessage.textContent =
+      message || DEFAULT_QUALITY_RESTART_MESSAGE;
+  }
+}
+
+/** Clears recovery overlay state (card, dimmer, action layout). */
+function clearScanRecoveryUi() {
+  setScanRecoveryUi(false);
+}
+
+/**
  * Open the scan panel and request camera access (shared by manual and auto start).
  * @param {object} camera
  */
 function openScanPanelAndRequestCamera(camera) {
+  clearScanRecoveryUi();
+  if (cameraDOM.btnRestartCamera) {
+    cameraDOM.btnRestartCamera.classList.add("hidden");
+  }
   if (cameraDOM.btnStart) cameraDOM.btnStart.disabled = true;
   cameraDOM.panelInstructions.classList.add("hidden");
   cameraDOM.panelScan.classList.remove("hidden");
@@ -414,7 +550,8 @@ function waitForModelsThenOpenCamera(camera) {
     cameraDOM.scanOverlayCamera.classList.add("hidden");
     cameraDOM.scanOverlayDenied.classList.remove("hidden");
     cameraDOM.scanOverlayDeniedText.textContent =
-      "Face detector failed to load. Check network or the models folder, refresh, retry.";
+      FaceScanFaceModel.getProviderLabel() +
+      " failed to load. Check detector meta config and refresh.";
     syncStartButtonAvailability();
     return;
   }
@@ -441,7 +578,8 @@ function waitForModelsThenOpenCamera(camera) {
       cameraDOM.scanOverlayCamera.classList.add("hidden");
       cameraDOM.scanOverlayDenied.classList.remove("hidden");
       cameraDOM.scanOverlayDeniedText.textContent =
-        "Face detector failed to load. Check network or the models folder, refresh, retry.";
+        FaceScanFaceModel.getProviderLabel() +
+        " failed to load. Check detector meta config and refresh.";
       syncStartButtonAvailability();
     });
 }
@@ -536,6 +674,8 @@ function resetUiToStart(camera, recording) {
   if (recording) recording.teardownRecordingPill();
   if (camera) camera.stopStream();
   if (camera) camera.cancelCountdown();
+  context.skipFpsGate = false;
+  if (cameraDOM.fpsScanSkipBanner) cameraDOM.fpsScanSkipBanner.classList.add("hidden");
   cameraDOM.panelInstructions.classList.remove("hidden");
   cameraDOM.panelScan.classList.add("hidden");
   cameraDOM.panelResult.classList.add("hidden");
@@ -544,6 +684,10 @@ function resetUiToStart(camera, recording) {
     cameraDOM.scanIntro.hidden = true;
   }
   if (camera) camera.hideScanCameraStates();
+  if (cameraDOM.btnRestartCamera) {
+    cameraDOM.btnRestartCamera.classList.add("hidden");
+  }
+  clearScanRecoveryUi();
   cameraDOM.overlayCountdown.hidden = true;
   cameraDOM.overlayCountdown.classList.add("hidden");
   hideError();
@@ -562,6 +706,7 @@ function resetUiToStart(camera, recording) {
 function hasRequiredDom() {
   return !!(
     cameraDOM.btnStart &&
+    cameraDOM.btnRestartCamera &&
     cameraDOM.btnCancel &&
     cameraDOM.btnCameraRetry &&
     cameraDOM.btnCameraBack &&
@@ -574,6 +719,7 @@ function hasRequiredDom() {
  * @returns {object}
  */
 function createRecordingController(getCamera, onResetUi) {
+  var recordBps = getRecordVideoBitrates();
   return FaceScanRecordingController.create({
     ctx: context,
     getCamera: function () {
@@ -590,8 +736,8 @@ function createRecordingController(getCamera, onResetUi) {
     },
     config: {
       recordTargetMs: RECORD_TARGET_MS,
-      recordVideoBpsMp4: RECORD_VIDEO_BPS_MP4,
-      recordVideoBpsWebm: RECORD_VIDEO_BPS_WEBM,
+      recordVideoBpsMp4: recordBps.mp4,
+      recordVideoBpsWebm: recordBps.webm,
     },
     bridges: {
       showError: showError,
@@ -612,6 +758,8 @@ function createRecordingController(getCamera, onResetUi) {
               recordedMime: recordedMime,
               baseTxt: baseTxt,
               consentGiven: hasFaceScanConsent(),
+              qualityTimeline: context.qualityTimeline || [],
+              captureMetadata: context.cameraMetadata || null,
             },
           }),
         );
@@ -619,6 +767,40 @@ function createRecordingController(getCamera, onResetUi) {
           cameraDOM.mimeHint.textContent =
             baseTxt + "Upload and score calculation start automatically.";
         }
+      },
+      onQualityRestart: function (message, qualityTimeline) {
+        context.retryCount = (context.retryCount || 0) + 1;
+        context.qualityTimeline = Array.isArray(qualityTimeline)
+          ? qualityTimeline
+          : [];
+        hideError();
+        var recoveryMessage = message || DEFAULT_QUALITY_RESTART_MESSAGE;
+        setScanRecoveryUi(true, recoveryMessage);
+        if (cameraDOM.btnRestartCamera) {
+          cameraDOM.btnRestartCamera.classList.remove("hidden");
+        }
+        if (cameraDOM.mimeHint) {
+          cameraDOM.mimeHint.textContent =
+            "Tap Restart camera below when you are ready for another measurement.";
+        }
+        if (cameraDOM.placementStatus) {
+          H.setPlacementUi(
+            cameraDOM.placementStatus,
+            "bad",
+            "Paused — restart below when ready.",
+          );
+        }
+        if (cameraDOM.scanOverlayCameraText) {
+          cameraDOM.scanOverlayCameraText.textContent =
+            "Restart recommended for a cleaner measurement.";
+        }
+        if (cameraDOM.scanOverlayCamera) {
+          cameraDOM.scanOverlayCamera.classList.add("hidden");
+        }
+        if (cameraDOM.scanOverlayDenied) {
+          cameraDOM.scanOverlayDenied.classList.add("hidden");
+        }
+        setScanOverlayTip("Use steady lighting and hold still after you restart.");
       },
     },
   });
@@ -629,10 +811,12 @@ function createRecordingController(getCamera, onResetUi) {
  * @returns {object}
  */
 function createCameraController(recording) {
+  var perf = getDevicePerfConfig();
   return FaceScanCameraController.create({
     ctx: context,
     elements: {
       preview: cameraDOM.preview,
+      faceMeshCanvas: cameraDOM.faceMeshCanvas,
       placementStatus: cameraDOM.placementStatus,
       scanOverlayCamera: cameraDOM.scanOverlayCamera,
       scanOverlayDenied: cameraDOM.scanOverlayDenied,
@@ -643,18 +827,58 @@ function createCameraController(recording) {
       faceScanTarget: cameraDOM.faceScanTarget,
       overlayCountdown: cameraDOM.overlayCountdown,
       countdownNumber: cameraDOM.countdownNumber,
+      fpsScanSkipBanner: cameraDOM.fpsScanSkipBanner,
     },
     config: {
+      warmupDurationMs: perf.warmupDurationMs,
       alignIntervalMs: ALIGN_INTERVAL_MS,
+      isPhone: perf.isPhone,
+      recordFramingIntervalMs: perf.recordFramingIntervalMs,
+      majorAbortStreak: perf.majorAbortStreak,
+      useDetectorDuringRecord: perf.useDetectorDuringRecord,
+      skipMeshDuringRecord: perf.skipMeshDuringRecord,
+      useDetectorDuringAlign: perf.useDetectorDuringAlign,
+      skipMeshDuringAlign: perf.skipMeshDuringAlign,
+      phoneMeshIntroMs: perf.phoneMeshIntroMs,
+      skipRecordLuminanceChecks: perf.skipRecordLuminanceChecks,
+      deferRecordDetectorLoad: perf.deferRecordDetectorLoad,
+      alignMeshEveryNTicks: perf.alignMeshEveryNTicks,
+      recordCollectorEveryNTicks: perf.recordCollectorEveryNTicks,
       stableHitCount: STABLE_HIT_COUNT,
+      minAlignMs: MIN_ALIGN_MS,
       faceMinFrac: FACE_MIN_FRAC,
       faceMaxFrac: FACE_MAX_FRAC,
+      facePreferredMinFrac: FACE_PREFERRED_MIN_FRAC,
+      facePreferredMaxFrac: FACE_PREFERRED_MAX_FRAC,
       recordTargetMs: RECORD_TARGET_MS,
+      recordMaxWallClockMs: RECORD_MAX_WALL_CLOCK_MS,
       faceMinMeanLuminance: H.DEFAULT_FACE_MIN_MEAN_LUMINANCE,
+      faceMaxMeanLuminance: FACE_MAX_MEAN_LUMINANCE,
+      maxOverexposedRatio: FACE_MAX_OVEREXPOSED_RATIO,
+      maxUnderexposedRatio: FACE_MAX_UNDEREXPOSED_RATIO,
+      maxSideLuminanceAsymmetry: FACE_MAX_SIDE_LUMA_ASYMMETRY,
+      maxBrightnessStd: FACE_MAX_BRIGHTNESS_STD,
+      maxHeadMotionFracPerSample: FACE_MAX_HEAD_MOTION_FRAC_PER_SAMPLE,
+      minStableFps: FACE_MIN_STABLE_FPS,
+      maxFrameDtStdRatio: FACE_MAX_FRAME_DT_STD_RATIO,
+      poseRatioMin: FACE_POSE_RATIO_MIN,
+      poseRatioMax: FACE_POSE_RATIO_MAX,
+      maxLandmarkRollRatio: FACE_MAX_LANDMARK_ROLL_RATIO,
+      maxLandmarkYawRatio: FACE_MAX_LANDMARK_YAW_RATIO,
+      faceVisibleMarginFracX: FACE_VISIBLE_MARGIN_FRAC_X,
+      faceVisibleMarginFracY: FACE_VISIBLE_MARGIN_FRAC_Y,
+      qualityHistoryLen: FACE_QUALITY_HISTORY_LEN,
+      preliminaryRppgEnabled: FACE_PRELIMINARY_RPPG_ENABLED,
+      preliminaryRppgMinGreenStd: FACE_PRELIMINARY_RPPG_MIN_GREEN_STD,
+      preliminaryRppgMaxGreenStd: FACE_PRELIMINARY_RPPG_MAX_GREEN_STD,
     },
     bridges: {
       hideError: hideError,
       onCameraReady: function () {
+        setScanOverlayStage("camera");
+        setScanOverlayTip("Hold steady — preparing your camera…");
+      },
+      onAlignmentStart: function () {
         setScanOverlayStage("align");
         setScanOverlayTip(
           "Center your face in the guide. We start automatically once alignment is stable.",
@@ -664,6 +888,11 @@ function createCameraController(recording) {
         setScanOverlayStage("align");
         setScanOverlayTip("Perfect alignment. Starting recording now…");
         if (!recording) return Promise.resolve();
+        context.attemptCount = (context.attemptCount || 0) + 1;
+        if (context.cameraMetadata) {
+          context.cameraMetadata.attempt_count = context.attemptCount;
+          context.cameraMetadata.retry_count = context.retryCount || 0;
+        }
         return recording.beginRecording();
       },
     },
@@ -705,10 +934,27 @@ function bindFaceScanEvents(camera, recording) {
     resetUiToStart(camera, recording);
   });
 
+  if (cameraDOM.btnRestartCamera) {
+    cameraDOM.btnRestartCamera.addEventListener("click", function () {
+      hideError();
+      openScanPanelAndRequestCamera(camera);
+    });
+  }
+
   if (cameraDOM.faceConsentCheckbox) {
     cameraDOM.faceConsentCheckbox.addEventListener("change", function () {
       hideError();
       syncStartButtonAvailability();
+    });
+  }
+
+  if (cameraDOM.btnFpsSkip) {
+    cameraDOM.btnFpsSkip.addEventListener("click", function () {
+      if (!Dbg.isFaceScanDebugEnabled()) return;
+      context.skipFpsGate = true;
+      if (cameraDOM.fpsScanSkipBanner) {
+        cameraDOM.fpsScanSkipBanner.classList.add("hidden");
+      }
     });
   }
 }

@@ -18,15 +18,14 @@ import {
   stopUploadPulse,
   syncFaceStepNextGate,
   syncRecordAgainButton,
-} from "./controller/face_scan_upload_controller.js";
+} from "./controller/face_scan/upload_controller.js";
 
 import {
-  autoStartFaceScanDirectly,
   initFaceScanFlow,
   resetFaceScanFlowForLanding,
   restartFaceScanForNewRecording,
   setFaceScanConsentRequired,
-} from "./controller/face_scan_flow_controller.js";
+} from "./controller/face_scan/flow_controller.js";
 import { MUSIC_HISTOGRAM_WINDOW_SEC } from "./controller/music_waveform_renderer.js";
 import { syncWizardNextButton } from "./controller/wizard_nav_controller.js";
 import {
@@ -46,14 +45,12 @@ const AUTO_ADVANCE_STEPS = new Set([2]);
 
 try {
   await fetchMusicData();
-} catch (error) {
-  console.error("Failed to fetch music data:", error);
+} catch (_error) {
 }
 
 try {
   await initFaceScanFlow();
-} catch (error) {
-  console.error("Failed to initialize face scan flow:", error);
+} catch (_error) {
 }
 
 initDemoWizard();
@@ -126,11 +123,13 @@ function createInitialState(stepCount) {
       pendingBlob: null,
       pendingMime: "",
       pendingConsent: true,
+      pendingCaptureMetadata: null,
     },
     assessment: {
       latestResult: null,
       baselineArousal: null,
       postArousal: null,
+      baselineToken: null,
     },
     emotionViz: {
       xAxisValencePercent: VALENCE_X_AXIS_DEFAULT,
@@ -200,6 +199,46 @@ function initializeUi(dom, state) {
   updateStep(dom, state, 0, { focus: false });
 }
 
+/**
+ * Start the post-music face scan exactly once from wizard step 3.
+ * This prevents duplicate camera requests and keeps alignment state stable.
+ */
+function startPostScanCapture(dom, state) {
+  moveFaceScanApp(dom, "post");
+  setFaceScanConsentRequired(false);
+  resetValencePlacementForScan(dom);
+  state.emotionViz.postScanValenceConfirmed = false;
+  resetUploadState(state);
+  clearRecordedPreview(dom, state);
+  syncRecordAgainButton(dom, false);
+  restartFaceScanForNewRecording();
+}
+
+/** Reset wizard to baseline step when baseline/post pairing is lost. */
+function restartBaselineWizardFromPairingFailure(dom, state, controllers) {
+  void stopMusicPlayback({
+    fadeOutMs: MUSIC_FADE_MS_ON_BACK_TO_DEMOGRAPHIC,
+  }).then(() => {
+    resetMusicDemoSession();
+  });
+  state.assessment.baselineArousal = null;
+  state.assessment.baselineToken = null;
+  state.assessment.postArousal = null;
+  state.assessment.latestResult = null;
+  state.musicGate.listenedSeconds = 0;
+  state.musicGate.requirementMet = false;
+  state.musicGate.autoAdvanced = false;
+  resetUploadState(state);
+  clearRecordedPreview(dom, state);
+  state.emotionViz.postScanValenceConfirmed = false;
+  resetValencePlacementForScan(dom);
+  syncRecordAgainButton(dom, false);
+  moveFaceScanApp(dom, "pre");
+  setFaceScanConsentRequired(true);
+  restartFaceScanForNewRecording();
+  updateStep(dom, state, 0, { controllers, focus: false });
+}
+
 function bindEvents(dom, state, controllers) {
   document.addEventListener(MUSIC_PROGRESS_EVENT, (ev) => {
     const seconds = Number(ev?.detail?.currentTime) || 0;
@@ -229,6 +268,7 @@ function bindEvents(dom, state, controllers) {
     state.upload.pendingBlob = detail.blob;
     state.upload.pendingMime = detail.recordedMime || detail.blob.type || "";
     state.upload.pendingConsent = detail.consentGiven !== false;
+    state.upload.pendingCaptureMetadata = detail.captureMetadata || null;
     state.upload.completed = false;
     if (state.currentStep === 2) {
       state.emotionViz.postScanValenceConfirmed = false;
@@ -264,6 +304,19 @@ function bindEvents(dom, state, controllers) {
       syncPostScanValenceForResults(state, controllers);
       updateStep(dom, state, 3, { controllers });
     }
+  });
+
+  document.addEventListener("maika-demo:baseline-pairing-required", (ev) => {
+    const message =
+      ev?.detail?.message ||
+      "Baseline pairing is missing. Your first scan did not complete correctly — please record your baseline scan again.";
+    if (state.currentStep === 2) {
+      restartBaselineWizardFromPairingFailure(dom, state, controllers);
+    } else if (state.currentStep === 0) {
+      restartFaceScanForNewRecording();
+    }
+    setWizardError(dom, message);
+    syncFaceStepNextGate(dom, state);
   });
 
   dom.btnRecordAgain?.addEventListener("click", () => {
@@ -343,17 +396,7 @@ function updateStep(dom, state, targetStep, options = {}) {
   }
 
   if (targetStep === 2) {
-    moveFaceScanApp(dom, "post");
-    setFaceScanConsentRequired(false);
-    resetValencePlacementForScan(dom);
-    state.emotionViz.postScanValenceConfirmed = false;
-    resetUploadState(state);
-    clearRecordedPreview(dom, state);
-    syncRecordAgainButton(dom, false);
-    restartFaceScanForNewRecording();
-    globalThis.requestAnimationFrame(function () {
-      autoStartFaceScanDirectly();
-    });
+    startPostScanCapture(dom, state);
   }
 
   if (targetStep === 3) {
