@@ -99,7 +99,8 @@ export function tickAlignment(state) {
       }
 
       if (state.el.fpsScanSkipBanner) {
-        state.el.fpsScanSkipBanner.classList.toggle("hidden", !quality.fpsLow);
+        var showFpsSkipBanner = !!quality.fpsLow && Dbg.isFaceScanDebugEnabled();
+        state.el.fpsScanSkipBanner.classList.toggle("hidden", !showFpsSkipBanner);
       }
 
       if (quality.ok) {

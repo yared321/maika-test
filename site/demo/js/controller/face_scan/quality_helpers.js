@@ -550,7 +550,7 @@ export function evaluateTemporalQuality(state, preview) {
       }),
     );
     if (fps < minFps) {
-      if (state.ctx && state.ctx.skipFpsGate) {
+      if (Dbg.isFaceScanDebugEnabled() && state.ctx && state.ctx.skipFpsGate) {
         checks[checks.length - 1] = qualityCheck("12_frame_rate_stable", true, {
           fps: Number(fps.toFixed(1)),
           minFps: minFps,

@@ -950,6 +950,7 @@ function bindFaceScanEvents(camera, recording) {
 
   if (cameraDOM.btnFpsSkip) {
     cameraDOM.btnFpsSkip.addEventListener("click", function () {
+      if (!Dbg.isFaceScanDebugEnabled()) return;
       context.skipFpsGate = true;
       if (cameraDOM.fpsScanSkipBanner) {
         cameraDOM.fpsScanSkipBanner.classList.add("hidden");
