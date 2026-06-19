@@ -510,8 +510,7 @@ export async function fetchMusicData() {
     const vs = document.getElementById("volume-slider");
     setRangeFillPercent(pb, pb ? Number(pb.value) || 0 : 0);
     setRangeFillPercent(vs, vs ? (Number(vs.value) || 0) * 100 : 100);
-  } catch (error) {
-    console.error("Error fetching music data:", error);
+  } catch (_error) {
     musicData = [];
     populateMusicSelect();
   }

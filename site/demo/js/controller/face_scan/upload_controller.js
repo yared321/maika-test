@@ -2,9 +2,10 @@ import {
   generateFaceScanRequestId,
   postRecording,
   resolveEndpoint,
-} from "../service/service.js";
-import { applyDefaultDemographics } from "./demographic_form_controller.js";
-import { syncWizardNextButton } from "./wizard_nav_controller.js";
+  ASSESS_PATHS,
+} from "../../service/service.js";
+import { applyDefaultDemographics } from "../demographic_form_controller.js";
+import { syncWizardNextButton } from "../wizard_nav_controller.js";
 
 /**
  * Read arousal from an API assessment payload.
@@ -21,9 +22,46 @@ const UPLOAD_STATUS = {
   idle: "Ready to upload and calculate score",
   uploading: "Uploading video and calculating score…",
   success: "Score calculated. You can continue.",
-  error:
-    "Upload or score failed. Use Record again for a new video, or Continue to retry this one.",
+  error: "Upload failed. Use Record again for a new video, or Continue to retry.",
+  errorNoRetry: "Score calculation failed. Please record again.",
 };
+
+const BASELINE_PAIRING_ERROR =
+  "Baseline pairing is missing. Your first scan did not complete correctly — please record your baseline scan again.";
+
+// User-facing messages for specific API error codes (spec §5).
+const ERROR_CODE_MESSAGES = {
+  LOW_LIGHT:        "Lighting was too low during the scan. Move to a brighter area and record again.",
+  LOW_QUALITY:      "Video quality was too low. Ensure good lighting and hold steady, then record again.",
+  FACE_NOT_FOUND:   "No face was detected in the recording. Keep your face in frame and record again.",
+  VIDEO_TOO_SHORT:  "Recording was too short. Stay still for the full 30 seconds and record again.",
+  UNSUPPORTED_MEDIA:"Video format is not supported. Please record again.",
+  PAYLOAD_TOO_LARGE:"Recording is too large to upload (max 31 MB). Please record again.",
+  RATE_LIMITED:     "Too many requests — please wait a moment, then try again.",
+  UNAUTHORIZED:     "Authentication failed. Please refresh the page and try again.",
+  FORBIDDEN:        "Access denied. Please refresh the page and try again.",
+  INTERNAL_ERROR:   "Server error — please try again in a moment.",
+};
+
+// Build the user-facing message and retryable flag from an upload result.
+function errorMessageForResult(result) {
+  if (result.errorCode && ERROR_CODE_MESSAGES[result.errorCode]) {
+    return ERROR_CODE_MESSAGES[result.errorCode];
+  }
+  if (result.errorMessage) return result.errorMessage;
+  if (result.timedOut) return "Upload timed out. Please try again.";
+  if (result.netError) return "Network error. Check your connection and try again.";
+  return `Upload failed (HTTP ${result.status || 0}).`;
+}
+
+/** Notify wizard that baseline/post pairing failed and baseline must be redone. */
+function notifyBaselinePairingRequired(message) {
+  document.dispatchEvent(
+    new CustomEvent("maika-demo:baseline-pairing-required", {
+      detail: { message: message || BASELINE_PAIRING_ERROR },
+    }),
+  );
+}
 
 /**
  * Show or hide the result-panel "Record again" control.
@@ -162,6 +200,7 @@ export function resetUploadState(state) {
   state.upload.pendingBlob = null;
   state.upload.pendingMime = "";
   state.upload.pendingConsent = true;
+  state.upload.pendingCaptureMetadata = null;
 }
 
 /**
@@ -201,7 +240,32 @@ export async function startFaceUpload(dom, state, setWizardError) {
     return;
   }
 
-  const endpoint = resolveEndpoint();
+  const scanPhase =
+    state.currentStep === 0 ? "baseline" : state.currentStep === 2 ? "post" : null;
+
+  const baselineToken =
+    scanPhase === "post" ? String(state.assessment.baselineToken || "").trim() : "";
+
+  if (scanPhase === "post" && !baselineToken) {
+    failFaceUpload(
+      dom,
+      state,
+      setWizardError,
+      UPLOAD_STATUS.errorNoRetry,
+      BASELINE_PAIRING_ERROR,
+    );
+    notifyBaselinePairingRequired(BASELINE_PAIRING_ERROR);
+    return;
+  }
+
+  const endpointPath =
+    scanPhase === "baseline"
+      ? ASSESS_PATHS.baseline
+      : scanPhase === "post"
+        ? ASSESS_PATHS.post
+        : ASSESS_PATHS.single;
+
+  const endpoint = resolveEndpoint(endpointPath);
   if (!endpoint) {
     failFaceUpload(
       dom,
@@ -212,9 +276,6 @@ export async function startFaceUpload(dom, state, setWizardError) {
     );
     return;
   }
-
-  const scanPhase =
-    state.currentStep === 0 ? "baseline" : state.currentStep === 2 ? "post" : null;
 
   state.upload.isInFlight = true;
   setWizardError(dom, "");
@@ -229,21 +290,40 @@ export async function startFaceUpload(dom, state, setWizardError) {
       sex: sex,
       consent: true,
       requestId: generateFaceScanRequestId(),
+      baselineToken: baselineToken || undefined,
+      captureMetadata: state.upload.pendingCaptureMetadata || undefined,
     });
 
     if (uploadResult.ok) {
-      state.upload.completed = true;
-      setUploadUiState(dom, state, "success", UPLOAD_STATUS.success);
-      syncRecordAgainButton(dom, false);
       if (uploadResult.data && typeof uploadResult.data === "object") {
         state.assessment.latestResult = uploadResult.data;
         const arousal = extractArousalFromResult(uploadResult.data);
         if (scanPhase === "baseline") {
           state.assessment.baselineArousal = arousal;
+          const token = uploadResult.data.baseline_token;
+          state.assessment.baselineToken =
+            typeof token === "string" && token ? token : null;
+          if (!state.assessment.baselineToken) {
+            const message =
+              "Baseline scan uploaded but pairing token was missing. Please record your baseline scan again.";
+            failFaceUpload(dom, state, setWizardError, UPLOAD_STATUS.errorNoRetry, message);
+            notifyBaselinePairingRequired(message);
+            return;
+          }
         } else if (scanPhase === "post") {
           state.assessment.postArousal = arousal;
         }
+      } else if (scanPhase === "baseline") {
+        const message =
+          "Baseline scan uploaded but pairing token was missing. Please record your baseline scan again.";
+        failFaceUpload(dom, state, setWizardError, UPLOAD_STATUS.errorNoRetry, message);
+        notifyBaselinePairingRequired(message);
+        return;
       }
+
+      state.upload.completed = true;
+      setUploadUiState(dom, state, "success", UPLOAD_STATUS.success);
+      syncRecordAgainButton(dom, false);
       state.upload.pendingBlob = null;
       state.upload.pendingMime = "";
       setWizardError(dom, "");
@@ -258,15 +338,13 @@ export async function startFaceUpload(dom, state, setWizardError) {
       return;
     }
 
-    const message =
-      uploadResult.errorMessage ||
-      (uploadResult.timedOut
-        ? "Upload timed out."
-        : uploadResult.netError
-          ? "Network or CORS error."
-          : `Upload failed (HTTP ${uploadResult.status || 0}).`);
-    failFaceUpload(dom, state, setWizardError, UPLOAD_STATUS.error, message);
-  } catch (error) {
+    const message = errorMessageForResult(uploadResult);
+    // retryable===false means the same video will fail again — tell the user to re-record.
+    // retryable===true or null (network/5xx) means retrying the upload may succeed.
+    const canRetryUpload = uploadResult.retryable !== false;
+    const statusLabel = canRetryUpload ? UPLOAD_STATUS.error : UPLOAD_STATUS.errorNoRetry;
+    failFaceUpload(dom, state, setWizardError, statusLabel, message);
+  } catch (_error) {
     failFaceUpload(
       dom,
       state,
@@ -274,7 +352,6 @@ export async function startFaceUpload(dom, state, setWizardError) {
       UPLOAD_STATUS.error,
       "Unexpected upload error. Please try again.",
     );
-    console.error("Upload failed unexpectedly:", error);
   } finally {
     state.upload.isInFlight = false;
     syncFaceStepNextGate(dom, state);

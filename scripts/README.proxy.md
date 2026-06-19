@@ -8,7 +8,10 @@ This guide is production-only.
 - Either:
   - **Netlify Functions** — `netlify/functions/face-assess-proxy.mjs` (see below), or
   - a separate **Node proxy** — `scripts/maika-rppg-proxy.mjs` behind your own router.
-- Browser calls same-origin API path: `/api/face-assess/v1/web/assess`.
+- Browser calls same-origin API paths under `/api/face-assess/v1/web/`:
+  - `assess-baseline` — first (baseline) wizard scan
+  - `assess-post` — second (post-music) scan, requires `baseline_token`
+  - `assess` — legacy single-step path (standalone/non-wizard uploads only)
 
 ---
 
@@ -87,9 +90,10 @@ Without this route split, browser uploads will fail.
 
 1. Open your live demo page.
 2. Run face upload flow.
-3. In browser Network tab, confirm upload requests go to:
-   - `/api/face-assess/v1/web/assess`
-4. Confirm request succeeds (2xx) and response payload is returned.
+3. In browser Network tab, confirm wizard upload requests go to:
+   - `/api/face-assess/v1/web/assess-baseline` (step 1)
+   - `/api/face-assess/v1/web/assess-post` with `baseline_token` (step 3)
+4. Confirm each request succeeds (2xx) and response payload is returned.
 
 ### 6) Troubleshooting
 

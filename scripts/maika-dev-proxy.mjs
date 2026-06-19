@@ -77,6 +77,8 @@ const PROXY_PREFIX = '/api/face-assess';
 const DEMO_VERIFY_PATH = '/api/demo-verify';
 const DEMO_CODE_CREATE_PATH = '/api/demo-code-create';
 const DEMO_CODE_REVOKE_PATH = '/api/demo-code-revoke';
+const FACE_SCAN_DEBUG_METADATA_PATH = '/api/face-scan-debug-metadata';
+const FACE_SCAN_METADATA_DIR = path.join(SITE_ROOT, 'demo', 'data', 'meta_data');
 const BETA_REGISTER_PATH = '/api/beta-register';
 
 const MIME = {
@@ -520,6 +522,51 @@ async function handleDemoCodeRevoke(req, res) {
   writeJson(res, req, 200, { ok: true, code: revoked.code, removed: revoked.removed });
 }
 
+async function handleFaceScanDebugMetadata(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, corsHeaders(req));
+    res.end();
+    return;
+  }
+  if (req.method !== 'POST') {
+    writeJson(res, req, 405, { ok: false, error: 'Method not allowed' });
+    return;
+  }
+
+  const parsed = await parseJsonBody(req, res);
+  if (!parsed.ok) return;
+  const metadata = parsed.body;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    writeJson(res, req, 400, { ok: false, error: 'Missing metadata object.' });
+    return;
+  }
+
+  const ts = Date.now();
+  const filename = `face-scan-camera-metadata-${ts}.json`;
+  const dirResolved = path.resolve(FACE_SCAN_METADATA_DIR);
+  const filePath = path.join(dirResolved, filename);
+  if (!path.resolve(filePath).startsWith(dirResolved + path.sep)) {
+    writeJson(res, req, 400, { ok: false, error: 'Invalid path.' });
+    return;
+  }
+
+  try {
+    fs.mkdirSync(dirResolved, { recursive: true });
+    fs.writeFileSync(filePath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+  } catch (err) {
+    writeJson(res, req, 500, {
+      ok: false,
+      error: String(err?.message || err || 'Could not write metadata file.'),
+    });
+    return;
+  }
+
+  writeJson(res, req, 200, {
+    ok: true,
+    path: `/demo/data/meta_data/${filename}`,
+  });
+}
+
 function safeResolveFile(urlPathname) {
   let rel = urlPathname;
   if (rel === '/' || rel === '') rel = 'index.html';
@@ -608,8 +655,11 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (u.pathname === BETA_REGISTER_PATH) {
-    handleBetaRegister(req, res).catch((err) => {
+  if (
+    u.pathname === FACE_SCAN_DEBUG_METADATA_PATH ||
+    u.pathname === FACE_SCAN_DEBUG_METADATA_PATH + "/"
+  ) {
+    handleFaceScanDebugMetadata(req, res).catch((err) => {
       if (!res.headersSent) {
         writeJson(res, req, 500, { ok: false, error: String(err?.message || err) });
       }
@@ -643,6 +693,7 @@ server.listen(PORT, () => {
       `  Demo verify: POST http://localhost:${PORT}${DEMO_VERIFY_PATH}\n` +
       `  Demo code create: POST http://localhost:${PORT}${DEMO_CODE_CREATE_PATH}\n` +
       `  Demo code revoke: POST http://localhost:${PORT}${DEMO_CODE_REVOKE_PATH}\n` +
+      `  Face-scan debug metadata: POST http://localhost:${PORT}${FACE_SCAN_DEBUG_METADATA_PATH}`,
       `  Beta register: POST http://localhost:${PORT}${BETA_REGISTER_PATH}`,
   );
 });

@@ -2,9 +2,16 @@
  * Minimal face scan uploader (module version).
  */
 
-const SAME_ORIGIN_PROXY_ENDPOINT = "/api/face-assess/v1/web/assess";
-const DEFAULT_TIMEOUT_MS = 120000;
-const UPLOAD_FORMDATA_FIELD = "video";
+const PROXY_BASE              = "/api/face-assess";
+const ENDPOINT_ASSESS         = "/v1/web/assess";
+const ENDPOINT_ASSESS_BASELINE = "/v1/web/assess-baseline";
+const ENDPOINT_ASSESS_POST    = "/v1/web/assess-post";
+const DEFAULT_TIMEOUT_MS      = 180000;
+const UPLOAD_FORMDATA_FIELD   = "video";
+// Delays between retry attempts — length also defines max retry count (2).
+const RETRY_DELAYS_MS         = [500, 1000];
+// Cloud Run hard limit is 32 MiB; cap at 31 MiB to leave multipart overhead room.
+const MAX_BLOB_BYTES          = 31 * 1024 * 1024;
 
 const STATIC_FIELDS = {
   consent: "true",
@@ -55,15 +62,22 @@ export function generateFaceScanRequestId() {
   return `${t}-${r}`;
 }
 
-// Resolve upload endpoint using a same-origin proxy route.
-// Secrets and upstream auth headers should be injected server-side by that proxy.
-export function resolveEndpoint() {
+// Resolve a proxy-routed upload endpoint by path.
+// Pass ENDPOINT_ASSESS_BASELINE or ENDPOINT_ASSESS_POST for the two-step wizard flow,
+// or omit to get the legacy single-step endpoint (standalone upload paths only).
+export function resolveEndpoint(path) {
   try {
-    return new URL(SAME_ORIGIN_PROXY_ENDPOINT, globalThis.location.href).href;
+    return new URL(PROXY_BASE + (path || ENDPOINT_ASSESS), globalThis.location.href).href;
   } catch (e) {
     return "";
   }
 }
+
+export const ASSESS_PATHS = {
+  baseline: ENDPOINT_ASSESS_BASELINE,
+  post: ENDPOINT_ASSESS_POST,
+  single: ENDPOINT_ASSESS,
+};
 
 // Ensure the video blob uses a consistent video format mp4/webm type for upload.
 // If the input blob is already the desired type, it is returned unchanged.
@@ -102,6 +116,57 @@ function parseJsonSafely(text) {
   }
 }
 
+function sleep(ms) {
+  return new Promise(function (resolve) { globalThis.setTimeout(resolve, ms); });
+}
+
+// Retry on network errors, timeouts, and 5xx only — not on 4xx or when the API
+// explicitly signals retryable: false (quality/format errors where the same
+// video would fail again regardless).
+function isRetryable(result) {
+  if (result.retryable === false) return false;
+  if (result.timedOut || result.netError) return true;
+  return result.status >= 500 && result.status <= 599;
+}
+
+// Single fetch attempt with its own AbortController + timeout.
+function fetchOnce(resolvedEndpoint, formData, timeoutMs) {
+  const controller =
+    typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller
+    ? globalThis.setTimeout(function () { controller.abort(); }, timeoutMs)
+    : 0;
+
+  return fetch(resolvedEndpoint, {
+    method: "POST",
+    body: formData,
+    signal: controller ? controller.signal : undefined,
+  })
+    .then(function (response) {
+      if (timeoutId) globalThis.clearTimeout(timeoutId);
+      return response.text().then(function (responseText) {
+        const data = parseJsonSafely(responseText);
+        const errorNode = data && data.error && typeof data.error === "object" ? data.error : null;
+        return {
+          ok: response.ok,
+          status: response.status,
+          errorMessage: response.ok ? "" : parseErrorText(responseText),
+          errorCode: errorNode && typeof errorNode.code === "string" ? errorNode.code : null,
+          retryable: errorNode && typeof errorNode.retryable === "boolean" ? errorNode.retryable : null,
+          data: data,
+        };
+      });
+    })
+    .catch(function (err) {
+      if (timeoutId) globalThis.clearTimeout(timeoutId);
+      const name = err && err.name ? String(err.name) : "";
+      if (name === "AbortError") {
+        return { ok: false, status: 0, timedOut: true, errorMessage: "Upload timed out." };
+      }
+      return { ok: false, status: 0, netError: true, errorMessage: (err && err.message) || "Upload failed." };
+    });
+}
+
 // Upload a recorded face scan to the configured endpoint with metadata.
 // Returns a promise resolving to the response status, parsed data, and any error message.
 export function postRecording(blob, endpointUrl, options) {
@@ -121,10 +186,16 @@ export function postRecording(blob, endpointUrl, options) {
 
   if (!blob || typeof blob.size !== "number") {
     return Promise.resolve({
-      ok: false,
-      status: 0,
-      netError: true,
+      ok: false, status: 0, netError: true,
       errorMessage: "Invalid recording blob.",
+    });
+  }
+
+  if (blob.size > MAX_BLOB_BYTES) {
+    return Promise.resolve({
+      ok: false, status: 0, retryable: false,
+      errorCode: "PAYLOAD_TOO_LARGE",
+      errorMessage: "Recording is too large to upload (max 31 MB). Please record again.",
     });
   }
 
@@ -155,64 +226,36 @@ export function postRecording(blob, endpointUrl, options) {
   formData.append("sex", normalizedSex);
   formData.append("consent", consentFieldValue);
   formData.append("request_id", requestIdFieldValue);
+  const baselineToken = options && options.baselineToken
+    ? String(options.baselineToken).trim()
+    : "";
+  if (baselineToken) formData.append("baseline_token", baselineToken);
+  if (options && options.captureMetadata && typeof options.captureMetadata === "object") {
+    try {
+      formData.append("capture_metadata", JSON.stringify(options.captureMetadata));
+    } catch (e) { /* ignore serialization errors — field is optional */ }
+  }
   formData.append(
     FaceScanUpload.fieldName,
     videoBlob,
     `face-scan-${Date.now()}.${ext}`,
   );
 
-  const abortController =
-    typeof AbortController !== "undefined" ? new AbortController() : null;
-    
   const timeoutMs =
-    FaceScanUpload.timeoutMs > 0
-      ? FaceScanUpload.timeoutMs
-      : DEFAULT_TIMEOUT_MS;
+    FaceScanUpload.timeoutMs > 0 ? FaceScanUpload.timeoutMs : DEFAULT_TIMEOUT_MS;
 
-  const timeoutId = abortController
-    ? globalThis.setTimeout(function () {
-        abortController.abort();
-      }, timeoutMs)
-    : 0;
+  // Retry loop: first attempt + up to RETRY_DELAYS_MS.length retries on transient failures.
+  async function attemptWithRetry() {
+    let result = await fetchOnce(resolvedEndpoint, formData, timeoutMs);
+    for (let i = 0; i < RETRY_DELAYS_MS.length; i++) {
+      if (!isRetryable(result)) break;
+      await sleep(RETRY_DELAYS_MS[i]);
+      result = await fetchOnce(resolvedEndpoint, formData, timeoutMs);
+    }
+    return result;
+  }
 
-  const fetchOptions = {
-    method: "POST",
-    body: formData,
-    signal: abortController ? abortController.signal : undefined,
-  };
-
-
-  return fetch(resolvedEndpoint, fetchOptions)
-    .then(function (response) {
-      if (timeoutId) globalThis.clearTimeout(timeoutId);
-      return Promise.resolve(response.text()).then(function (responseText) {
-        const data = parseJsonSafely(responseText);
-        return {
-          ok: response.ok,
-          status: response.status,
-          errorMessage: response.ok ? "" : parseErrorText(responseText),
-          data: data,
-        };
-      });
-    })
-    .catch(function (err) {
-      if (timeoutId) globalThis.clearTimeout(timeoutId);
-      const name = err && err.name ? String(err.name) : "";
-      if (name === "AbortError") {
-        return {
-          ok: false,
-          status: 0,
-          timedOut: true,
-          errorMessage: "Upload timed out.",
-        };
-      }
-      return {
-        ok: false,
-        status: 0,
-        netError: true,
-        errorMessage: (err && err.message) || "Upload failed.",
-      };
-    });
+  return attemptWithRetry();
 }
 
 FaceScanUpload.resolveEndpoint = resolveEndpoint;
